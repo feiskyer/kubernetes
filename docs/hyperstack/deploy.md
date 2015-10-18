@@ -35,9 +35,9 @@ Documentation for other releases can be found at
 
 This document covers the basic depolyment procedure for HyperStack. If you are looking for detailed depolyment of kubernetes, refer to [http://kubernetes.io/gettingstarted/](http://kubernetes.io/gettingstarted/).
 
-## Deploy OpenStack
+## Deploy OpenStack with Ceph
 
-There are a mass of OpenStack deployment solutions, including
+Since HyperStack is working together with OpenStack, a OpenStack cluster must be deployed first. There are a mass of OpenStack deployment solutions, including
 
 * [OpenStack Installation Guide for Ubuntu 14.04](http://docs.openstack.org/kilo/install-guide/install/apt/content/)
 * [OpenStack Installation Guide for Red Hat](http://docs.openstack.org/kilo/install-guide/install/yum/content/)
@@ -48,7 +48,9 @@ There are a mass of OpenStack deployment solutions, including
 * [Puppet](https://github.com/puppetlabs/puppetlabs-openstack)
 * And so on
 
-Choose any tool you like to deploy a new OpenStack, or you can just use existing  OpenStack environment.
+Choose any tool you like to deploy a new OpenStack cluster, or you can just re-use your existing OpenStack environment.
+
+Don't forget to deploy neutron L2 agent and ceph client for kubernetes nodes.
 
 ## Deploy Kubernetes
 
@@ -62,7 +64,7 @@ See more at [kuberntes getstarted guide](../../docs/getting-started-guides/)
 
 ## Deploy kubestack
 
-KubeStack is an OpenStack network provider for kubernetes.
+KubeStack is an OpenStack network provider for kubernetes and it's deployed on all kubernetes masters and nodes.
 
 ```shell
 cd $GOPATH
@@ -76,12 +78,12 @@ Config kubestack
 ```shell
 # cat /etc/kubestack.conf
 [Global]
-auth-url = http://172.31.17.48:5000/v2.0
+auth-url = http://keystone-server:5000/v2.0
 username = admin
 password = admin
 tenant-name = admin
 region = RegionOne
-ext-net-id = c0a96e14-b90f-49ef-b1d7-86321d55f7a0
+ext-net-id = <your-external-network-id>
 
 [LoadBalancer]
 create-monitor = yes
@@ -112,6 +114,10 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
+```shell
+systemctl start kubestack.service
+```
+
 ## Configure Kubernetes
 
 Disable selinux
@@ -140,7 +146,7 @@ Config etcd
 
 ```shell
 cat >> /etc/etcd/etcd.conf <<EOF
-ETCD_LISTEN_CLIENT_URLS="http://master:2379"
+ETCD_LISTEN_CLIENT_URLS="http://kube-master:2379"
 EOF
 ```
 
@@ -155,7 +161,7 @@ KUBE_LOG_LEVEL="--v=4”
 # Should this cluster be allowed to run privileged docker containers
 KUBE_ALLOW_PRIV="--allow_privileged=false"
 # How the controller-manager, scheduler, and proxy find the apiserver
-KUBE_MASTER="--master=http://master:8080"
+KUBE_MASTER="--master=http://kube-master:8080"
 ```
 
 Config kube-apiserver
@@ -163,19 +169,19 @@ Config kube-apiserver
 ```
 # cat /etc/kubernetes/apiserver
 # The address on the local server to listen to.
-KUBE_API_ADDRESS="--insecure-bind-address=0.0.0.0"
+KUBE_API_ADDRESS="--insecure-bind-address=127.0.0.1"
 # The port on the local server to listen on.
 # KUBE_API_PORT="--port=8080"
 # Port minions listen on
 # KUBELET_PORT="--kubelet_port=10250"
 # Comma separated list of nodes in the etcd cluster
-KUBE_ETCD_SERVERS="--etcd_servers=http://master:2379"
+KUBE_ETCD_SERVERS="--etcd_servers=http://kube-master:2379"
 # Address range to use for services
 KUBE_SERVICE_ADDRESSES="--service-cluster-ip-range=10.254.0.0/16"
 # default admission control policies
 KUBE_ADMISSION_CONTROL="--admission_control=NamespaceLifecycle,NamespaceExists,LimitRanger,SecurityContextDeny,ServiceAccount,ResourceQuota"
 # Add your own!
-KUBE_API_ARGS="--service-account-key-file=/var/lib/kubernetes/serviceaccount.key --experimental-keystone-url=https://localhost:2349"
+KUBE_API_ARGS="--service-account-key-file=/var/lib/kubernetes/serviceaccount.key --experimental-keystone-url=https://keystone-server:2349"
 ```
 
 Config kube-controller-manager
@@ -211,22 +217,22 @@ KUBELET_ADDRESS="--address=0.0.0.0"
 # The port for the info server to serve on
 # KUBELET_PORT="--port=10250"
 # You may leave this blank to use the actual hostname
-KUBELET_HOSTNAME="--hostname_override=ostack"
+KUBELET_HOSTNAME=""
 # location of the api-server
-KUBELET_API_SERVER="--api_servers=http://ostack:8080"
+KUBELET_API_SERVER="--api_servers=http://minion-1:8080"
 # Add your own!
 KUBELET_ARGS="--container-runtime=hyper --network-provider=openstack --cinder-config=/etc/kubernetes/cinder.conf"
 
 # cat /etc/kubernetes/cinder.conf
 [Global]
-auth-url = http://172.31.17.48:5000/v2.0
+auth-url = http://keystone-server:5000/v2.0
 username = admin
 password = admin
 tenant-name = admin
 region = RegionOne
 
 [RBD]
-keyring = "AQAtqv9V3u4nKRAA9xfic687DqPW1FV/rly3nw=="
+keyring = "AQAtqv9V3u4nKRA8Cxfic687DqPW1FV/rly3nw=="
 ```
 
 ## Start services
