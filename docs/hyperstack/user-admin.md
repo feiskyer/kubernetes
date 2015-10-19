@@ -31,11 +31,11 @@ Documentation for other releases can be found at
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
-This document aims to describe how to manage tenants and users in HyperStack.
+This document aims to describe how to manage tenants and users in Hypernetes.
 
 ### Tenant management
 
-HyperStack manages tenants and users by OpenStack Keystone. To create a tenant, you must create it at Keystone first, and then expose it to kubernetes:
+Hypernetes manages tenants and users using OpenStack Keystone. To create a tenant, you must create it in Keystone first, then expose it to Kubernetes:
 
 Create OpenStack `demo` tenant
 
@@ -64,7 +64,7 @@ demo      <none>    Active    57m
 
 ### User management
 
-You can simply add user to existing tenant by OpenStack client. For exmaple, these commands add a `demouser` to tenant `demo`:
+You can simply add users to any existing tenant using an OpenStack client. For exmaple, these commands add a `demouser` to tenant `demo`:
 
 ```sh
 openstack user create --password demo demouser

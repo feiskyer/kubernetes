@@ -31,13 +31,13 @@ Documentation for other releases can be found at
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
-# HyperStack - deployment
+# Hypernetes - deployment
 
-This document covers the basic depolyment procedure for HyperStack. If you are looking for detailed depolyment of kubernetes, refer to [http://kubernetes.io/gettingstarted/](http://kubernetes.io/gettingstarted/).
+This document covers the basic depolyment procedure for Hypernetes. If you are looking for detailed depolyment of Kubernetes, refer to [http://kubernetes.io/gettingstarted/](http://kubernetes.io/gettingstarted/).
 
 ## Deploy OpenStack with Ceph
 
-Since HyperStack is working together with OpenStack, a OpenStack cluster must be deployed first. There are a mass of OpenStack deployment solutions, including
+Since Hypernetes is working together with OpenStack, a OpenStack cluster must be deployed first. There are a lot of OpenStack deployment solutions, including
 
 * [OpenStack Installation Guide for Ubuntu 14.04](http://docs.openstack.org/kilo/install-guide/install/apt/content/)
 * [OpenStack Installation Guide for Red Hat](http://docs.openstack.org/kilo/install-guide/install/yum/content/)
@@ -50,21 +50,21 @@ Since HyperStack is working together with OpenStack, a OpenStack cluster must be
 
 Choose any tool you like to deploy a new OpenStack cluster, or you can just re-use your existing OpenStack environment.
 
-Don't forget to deploy neutron L2 agent and ceph client for kubernetes nodes.
+Don't forget to deploy neutron L2 agent and Ceph client for Kubernetes nodes.
 
 ## Deploy Kubernetes
 
-Since HyperStack is kubernetes based, you can deploy HyperStack by same procedure as kubernetes. Here is some distro links:
+Since Hypernetes is Kubernetes based, you can deploy Hypernetes following same procedure as kubernetes. Here are some distribution-specific links:
 
-* [deploy kubernetes on centos](../../docs/getting-started-guides/centos/centos_manual_config.md)
-* [deploy kubernetes on ubuntu](../../docs/getting-started-guides/ubuntu.md)
-* [deploy kubernetes on fedora](../../docs/getting-started-guides/fedora/fedora_manual_config.md)
+* [deploy Kubernetes on centos](../../docs/getting-started-guides/centos/centos_manual_config.md)
+* [deploy Kubernetes on ubuntu](../../docs/getting-started-guides/ubuntu.md)
+* [deploy Kubernetes on fedora](../../docs/getting-started-guides/fedora/fedora_manual_config.md)
 
-See more at [kuberntes getstarted guide](../../docs/getting-started-guides/)
+See more at [Kubernetes getstarted guide](../../docs/getting-started-guides/)
 
-## Deploy kubestack
+## Deploy KubeStack
 
-KubeStack is an OpenStack network provider for kubernetes and it's deployed on all kubernetes masters and nodes.
+KubeStack is an OpenStack network provider for Kubernetes and it is deployed on all Kubernetes masters and nodes.
 
 ```shell
 cd $GOPATH
@@ -73,7 +73,7 @@ cd kubestack
 make && make install
 ```
 
-Config kubestack
+Configure KubeStack
 
 ```shell
 # cat /etc/kubestack.conf
@@ -127,7 +127,7 @@ sed -i 's/SELINUX=enforcing/SELINUX=disabled/g' /etc/selinux/config
 setenforce 0
 ```
 
-Create service account key
+Create the service account key
 
 ```shell
 mkdir /var/lib/kubernetes/
@@ -135,14 +135,14 @@ openssl genrsa -out /var/lib/kubernetes/serviceaccount.key 2048
 chown kube:kube /var/lib/kubernetes/serviceaccount.key
 ```
 
-Create kubernetes log dir
+Create Kubernetes log dir
 
 ```shell
 mkdir /var/log/kubernetes
 chown kube:kube kubernetes/
 ```
 
-Config etcd
+Configure etcd
 
 ```shell
 cat >> /etc/etcd/etcd.conf <<EOF
@@ -150,7 +150,7 @@ ETCD_LISTEN_CLIENT_URLS="http://kube-master:2379"
 EOF
 ```
 
-Common configs for all kubernetes services
+Common configs for all Kubernetes services
 
 ```shell
 # cat /etc/kubernetes/config
@@ -164,7 +164,7 @@ KUBE_ALLOW_PRIV="--allow_privileged=false"
 KUBE_MASTER="--master=http://kube-master:8080"
 ```
 
-Config kube-apiserver
+Configure kube-apiserver
 
 ```
 # cat /etc/kubernetes/apiserver
@@ -184,31 +184,31 @@ KUBE_ADMISSION_CONTROL="--admission_control=NamespaceLifecycle,NamespaceExists,L
 KUBE_API_ARGS="--service-account-key-file=/var/lib/kubernetes/serviceaccount.key --experimental-keystone-url=https://keystone-server:2349"
 ```
 
-Config kube-controller-manager
+Configure kube-controller-manager
 
 ```shell
 # cat /etc/kubernetes/controller-manager
-### 
-# The following values are used to configure the kubernetes controller-manager
+###
+# The following values are used to configure the Kubernetes controller-manager
 # defaults from config and apiserver should be adequate
 
 # Add your own!
 KUBE_CONTROLLER_MANAGER_ARGS="--service-account-private-key-file=/var/lib/kubernetes/serviceaccount.key --network-provider=openstack"
 ```
 
-Config kube-proxy
+Configure kube-proxy
 
 ```shell
 # cat /etc/kubernetes/proxy
-### 
-# kubernetes proxy config
+###
+# Kubernetes proxy config
 # default config should be adequate
 
 # Add your own!
 KUBE_PROXY_ARGS="--proxy-mode=haproxy"
 ```
 
-Config kubelet
+Configure kubelet
 
 ```shell
 # cat /etc/kubernetes/kubelet

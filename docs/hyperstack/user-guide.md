@@ -52,7 +52,7 @@ export OS_REGION_NAME=RegionOne
 
 **Install kubectl**
 
-TODO: Provide a url to download kubectl
+TODO: Provide an URL to download Kubectl
 
 **Setup kubectl auth options**
 
@@ -114,9 +114,9 @@ default   <none>              Active    30d
 ns1       <none>    default   Active    6m
 ```
 
-## Manage pod
+## Manage Pod
 
-Create pod spec `pod-ns1.yaml` and set its namespace to `ns1`
+Create Pod spec `pod-ns1.yaml` and set its namespace to `ns1`
 
 ```yaml
 apiVersion: v1
@@ -144,7 +144,7 @@ nginx     1/1       Running   0          2m
 
 ## Manage Pod with Cinder volume
 
-HyperStack [Persistent Volumes](../user-guide/persistent-volumes/) supports native Cinder volumes (only rbd backend is supported now), which means you can simply create a pod with cinder volume. A sample pod with Cinder volume `651b2a7b-683e-47e1-bdd6-e3c62e8f91c0` is
+Hypernetes [Persistent Volumes](../user-guide/persistent-volumes/) supports native Cinder volumes (only rbd backend is supported now), which means you can simply create a Pod with Cinder volume. A sample Pod with Cinder volume `651b2a7b-683e-47e1-bdd6-e3c62e8f91c0` is
 
 ```yaml
 apiVersion: v1
@@ -198,9 +198,9 @@ NAME      CLUSTER_IP       EXTERNAL_IP   PORT(S)    SELECTOR    AGE
 nginx     10.254.223.206                 8078/TCP   app=nginx   10m
 ```
 
-Whose cluster service `10.254.223.206:8078` can be only visited on Pods in namespace `ns1`
+Vluster service `10.254.223.206:8078` can be only visited on Pods in namespace `ns1`.
 
-Now let's create another service  `nginx2-ns1.yaml`. It's the same configuration as `nginx` service, but with externalIP `23.23.0.30`
+Now let's create another service `nginx2-ns1.yaml`. It's the same configuration as `nginx` service, but with externalIP `23.23.0.30`
 
 ```yaml
 apiVersion: v1
@@ -232,7 +232,7 @@ nginx2    10.254.154.51   192.168.0.4,23.23.0.30   8078/TCP   app=nginx   1m
 Notes about service `nginx2`
 
 * Cluster service `10.254.154.51:8078` can be only visited on Pods in namespace `ns1`
-* External ip `192.168.0.4` can be visited on all Pods in same network `net1` since it is the vip of network's internal load balancer
+* External ip `192.168.0.4` can be visited on all Pods in the same network `net1`, since it is the vip internal load balancer's network
 * External ip `23.23.0.30` can be visited on public since it is a public IP
 
 ## clean up
@@ -244,7 +244,7 @@ kubectl delete namespace ns1
 kubectl delete network net1
 ```
 
-For more detailed user guide, see [kubernetes user guide](../user-guide/)
+For a more detailed user guide, see [Kubernetes user guide](../user-guide/)
 
 
 <!-- BEGIN MUNGE: GENERATED_ANALYTICS -->

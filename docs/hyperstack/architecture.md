@@ -31,18 +31,18 @@ Documentation for other releases can be found at
 
 <!-- END MUNGE: UNVERSIONED_WARNING -->
 
-# HyperStack architecture
+# Hypernetes architecture
 
-HyperStack is a secure and public Caas powered by Hyper, Kubernetes and OpenStack. Simply put:
+Hypernetes is a secure, multi-tenant CaaS powered by Hyper, Kubernetes and OpenStack. Simply put:
 
-HyperStack = KeyStone + Cinder/Neutron + Hyper + Kubernetes
+Hypernetes = KeyStone + Cinder/Neutron + Hyper + Kubernetes
 
-HyperStack ensures:
+Hypernetes ensures:
 
-- multi-tenancy (together with keystone)
-- network isolation (by neutron)
-- persistent storage management (by cinder)
-- container orchestration (by kubernetes)
+- multi-tenancy (together with Keystone)
+- network isolation (by Neutron)
+- persistent storage management (by Cinder)
+- container orchestration (by Kubernetes)
 
 ![Architecture Diagram](architecture.png?raw=true "Architecture overview")
 
