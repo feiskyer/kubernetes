@@ -33,8 +33,8 @@ before_install:
   - if [[ $SHIPPABLE_GO_VERSION == *release* ]]; then gvm install release; gvm use release; fi
   - if [[ $SHIPPABLE_GO_VERSION =~ [0-9].[0-9] ]]; then gvm install go$SHIPPABLE_GO_VERSION; gvm use go$SHIPPABLE_GO_VERSION; fi
   - ./hack/install-etcd.sh
-  - export GOPATH=$SHIPPABLE_GOPATH
-  - mkdir -p /root/workspace/src/k8s.io; mv /root/workspace/src/github.com/kubernetes/kubernetes /root/workspace/src/k8s.io/kubernetes
+  - export GOPATH=$PWD
+  - mkdir -p $GOPATH/src/k8s.io; mv $GOPATH/src/github.com/feiskyer/kubernetes $GOPATH/src/k8s.io/kubernetes
   - export PATH=$GOPATH/bin:./third_party/etcd:$PATH
 
 install:
