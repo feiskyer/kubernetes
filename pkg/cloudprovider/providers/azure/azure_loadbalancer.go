@@ -181,21 +181,22 @@ func (az *Cloud) getServiceLoadBalancer(service *v1.Service, clusterName string,
 	primaryVMSetName := az.vmSet.GetPrimaryVMSetName()
 	defaultLBName := az.getLoadBalancerName(clusterName, primaryVMSetName, isInternal)
 
-	existingLBs, err := az.ListLBWithRetry()
+	existingLBs, err := az.lbCache.list()
 	if err != nil {
 		return nil, nil, false, err
 	}
 
 	// check if the service already has a load balancer
 	if existingLBs != nil {
-		for _, existingLB := range existingLBs {
-			if strings.EqualFold(*existingLB.Name, defaultLBName) {
-				defaultLB = &existingLB
+		for name := range existingLBs {
+			existingLB := existingLBs[name]
+			if strings.EqualFold(name, defaultLBName) {
+				defaultLB = existingLB
 			}
-			if isInternalLoadBalancer(&existingLB) != isInternal {
+			if isInternalLoadBalancer(existingLB) != isInternal {
 				continue
 			}
-			status, err = az.getServiceLoadBalancerStatus(service, &existingLB)
+			status, err = az.getServiceLoadBalancerStatus(service, existingLB)
 			if err != nil {
 				return nil, nil, false, err
 			}
@@ -204,14 +205,14 @@ func (az *Cloud) getServiceLoadBalancer(service *v1.Service, clusterName string,
 				continue
 			}
 
-			return &existingLB, status, true, nil
+			return existingLB, status, true, nil
 		}
 	}
 
 	// service does not have a load balancer, select one
 	if wantLb {
 		// select new load balancer for service
-		selectedLB, exists, err := az.selectLoadBalancer(clusterName, service, &existingLBs, nodes)
+		selectedLB, exists, err := az.selectLoadBalancer(clusterName, service, existingLBs, nodes)
 		if err != nil {
 			return nil, nil, false, err
 		}
@@ -235,7 +236,7 @@ func (az *Cloud) getServiceLoadBalancer(service *v1.Service, clusterName string,
 // the selection algorithm selectes the the load balancer with currently has
 // the minimum lb rules, there there are multiple LB's with same number of rules
 // it selects the first one (sorted based on name)
-func (az *Cloud) selectLoadBalancer(clusterName string, service *v1.Service, existingLBs *[]network.LoadBalancer, nodes []*v1.Node) (selectedLB *network.LoadBalancer, existsLb bool, err error) {
+func (az *Cloud) selectLoadBalancer(clusterName string, service *v1.Service, existingLBs map[string]*network.LoadBalancer, nodes []*v1.Node) (selectedLB *network.LoadBalancer, existsLb bool, err error) {
 	isInternal := requiresInternalLoadBalancer(service)
 	serviceName := getServiceName(service)
 	glog.V(3).Infof("selectLoadBalancer(%s): isInternal(%s) - start", serviceName, isInternal)
@@ -246,14 +247,10 @@ func (az *Cloud) selectLoadBalancer(clusterName string, service *v1.Service, exi
 	}
 	glog.Infof("selectLoadBalancer: cluster(%s) service(%s) isInternal(%t) - vmSetNames %v", clusterName, serviceName, isInternal, *vmSetNames)
 
-	mapExistingLBs := map[string]network.LoadBalancer{}
-	for _, lb := range *existingLBs {
-		mapExistingLBs[*lb.Name] = lb
-	}
 	selectedLBRuleCount := math.MaxInt32
 	for _, currASName := range *vmSetNames {
 		currLBName := az.getLoadBalancerName(clusterName, currASName, isInternal)
-		lb, exists := mapExistingLBs[currLBName]
+		lb, exists := existingLBs[currLBName]
 		if !exists {
 			// select this LB as this is a new LB and will have minimum rules
 			// create tmp lb struct to hold metadata for the new load-balancer
@@ -273,7 +270,7 @@ func (az *Cloud) selectLoadBalancer(clusterName string, service *v1.Service, exi
 		}
 		if currLBRuleCount < selectedLBRuleCount {
 			selectedLBRuleCount = currLBRuleCount
-			selectedLB = &lb
+			selectedLB = lb
 		}
 	}
 
@@ -764,6 +761,7 @@ func (az *Cloud) reconcileLoadBalancer(clusterName string, service *v1.Service, 
 				glog.V(2).Infof("delete(%s) abort backoff: lb(%s) - deleting; no remaining frontendipconfigs", serviceName, lbName)
 				return nil, err
 			}
+			az.lbCache.delete(lbName)
 			glog.V(10).Infof("az.DeleteLBWithRetry(%q): end", lbName)
 		} else {
 			glog.V(3).Infof("ensure(%s): lb(%s) - updating", serviceName, lbName)
@@ -772,6 +770,7 @@ func (az *Cloud) reconcileLoadBalancer(clusterName string, service *v1.Service, 
 				glog.V(2).Infof("ensure(%s) abort backoff: lb(%s) - updating", serviceName, lbName)
 				return nil, err
 			}
+			az.lbCache.update(lbName, lb)
 		}
 	}
 

@@ -17,10 +17,12 @@ limitations under the License.
 package azure
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/arm/compute"
+	"github.com/Azure/azure-sdk-for-go/arm/network"
 	"github.com/golang/glog"
 
 	"k8s.io/client-go/tools/cache"
@@ -28,7 +30,8 @@ import (
 )
 
 var (
-	cacheExpiration = 15 * time.Second
+	defaultCacheExpiration = 15 * time.Second
+	lbCacheExpiration      = 2 * time.Minute
 )
 
 type timedcacheEntry struct {
@@ -88,6 +91,10 @@ func (t *timedcache) Delete(key string) {
 	})
 }
 
+func (t *timedcache) List() []interface{} {
+	return t.store.List()
+}
+
 type vmCacheEntry struct {
 	lock *sync.Mutex
 	vm   *compute.VirtualMachine
@@ -103,7 +110,7 @@ func newVMCache(resourceGroup string, vmClient VirtualMachinesClient) *vmCache {
 	return &vmCache{
 		vmClient:      vmClient,
 		resourceGroup: resourceGroup,
-		cache:         newTimedcache(cacheExpiration),
+		cache:         newTimedcache(defaultCacheExpiration),
 	}
 }
 
@@ -150,4 +157,116 @@ func (vmc *vmCache) get(name string) (vm compute.VirtualMachine, err error) {
 
 func (vmc *vmCache) delete(name string) {
 	vmc.cache.Delete(name)
+}
+
+// lbCache holds a list of cached loadbalancers.
+type lbCache struct {
+	resourceGroup string
+	lbClient      LoadBalancersClient
+
+	lock        sync.Mutex
+	cache       map[string]*network.LoadBalancer
+	lastRefresh time.Time
+}
+
+// newLBCache creates a new lbCache.
+func newLBCache(resourceGroup string, lbClient LoadBalancersClient) *lbCache {
+	return &lbCache{
+		lbClient:      lbClient,
+		resourceGroup: resourceGroup,
+		cache:         make(map[string]*network.LoadBalancer),
+	}
+}
+
+// listLBFull gets a list of loadbalancers by calling Azure API.
+func (lbc *lbCache) listLBFull() (map[string]*network.LoadBalancer, error) {
+	allLBs := map[string]*network.LoadBalancer{}
+	var result network.LoadBalancerListResult
+
+	result, err := lbc.lbClient.List(lbc.resourceGroup)
+	if err != nil {
+		glog.Errorf("LoadBalancerClient.List(%s) failed: %v", lbc.resourceGroup, err)
+		return nil, err
+	}
+
+	moreResults := (result.Value != nil && len(*result.Value) > 0)
+	for moreResults {
+		for idx := range *result.Value {
+			lb := (*result.Value)[idx]
+			allLBs[*lb.Name] = &lb
+		}
+		moreResults = false
+
+		// follow the next link to get all the vms for resource group
+		if result.NextLink != nil {
+			result, err = lbc.lbClient.ListNextResults(lbc.resourceGroup, result)
+			if err != nil {
+				glog.Errorf("LoadBalancerClient.ListNextResults(%s) failed: %v", lbc.resourceGroup, err)
+				return nil, err
+			}
+
+			moreResults = (result.Value != nil && len(*result.Value) > 0)
+		}
+	}
+
+	return allLBs, nil
+}
+
+// list gets a list of loadbalancers from cache.
+func (lbc *lbCache) list() (map[string]*network.LoadBalancer, error) {
+	lbc.lock.Lock()
+	defer lbc.lock.Unlock()
+
+	if lbc.lastRefresh.Add(lbCacheExpiration).After(time.Now()) {
+		return lbc.cache, nil
+	}
+
+	if err := lbc.forceRefresh(); err != nil {
+		return nil, err
+	}
+
+	return lbc.cache, nil
+}
+
+// forceRefresh refreshes cache by calling Azure API.
+func (lbc *lbCache) forceRefresh() error {
+	glog.V(5).Infof("Refreshing lbCache")
+	newLBs, err := lbc.listLBFull()
+	if err != nil {
+		return err
+	}
+
+	lbc.cache = newLBs
+	lbc.lastRefresh = time.Now()
+	return nil
+}
+
+// get gets a loadbalancer by name.
+func (lbc *lbCache) get(name string) (*network.LoadBalancer, error) {
+	lbc.lock.Lock()
+	defer lbc.lock.Unlock()
+
+	if lb, ok := lbc.cache[name]; ok {
+		return lb, nil
+	}
+
+	return nil, fmt.Errorf("loadbalancer %q not found", name)
+}
+
+// update updates a loadbalancer's cache.
+func (lbc *lbCache) update(name string, newLB *network.LoadBalancer) {
+	lbc.lock.Lock()
+	defer lbc.lock.Unlock()
+
+	lbc.cache[name] = newLB
+	lbc.lastRefresh = time.Now()
+}
+
+// delete removes a loadbalancer from cache.
+func (lbc *lbCache) delete(name string) {
+	lbc.lock.Lock()
+	defer lbc.lock.Unlock()
+
+	delete(lbc.cache, name)
+	lbc.lastRefresh = time.Now().Add(-24 * time.Hour)
 }

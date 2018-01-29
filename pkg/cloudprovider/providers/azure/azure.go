@@ -129,6 +129,7 @@ type Cloud struct {
 
 	// Caches
 	vmCache *vmCache
+	lbCache *lbCache
 
 	*BlobDiskController
 	*ManagedDiskController
@@ -198,7 +199,9 @@ func NewCloud(configReader io.Reader) (cloudprovider.Interface, error) {
 		VirtualMachineScaleSetVMsClient: newAzVirtualMachineScaleSetVMsClient(azClientConfig),
 	}
 
+	// Initialize caches.
 	az.vmCache = newVMCache(config.ResourceGroup, az.VirtualMachinesClient)
+	az.lbCache = newLBCache(config.ResourceGroup, az.LoadBalancerClient)
 
 	// Conditionally configure resource request backoff
 	if az.CloudProviderBackoff {
