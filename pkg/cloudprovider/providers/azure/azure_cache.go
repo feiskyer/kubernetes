@@ -20,7 +20,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/arm/compute"
+	"github.com/golang/glog"
+
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/cloudprovider"
+)
+
+var (
+	cacheExpiration = 15 * time.Second
 )
 
 type timedcacheEntry struct {
@@ -78,4 +86,68 @@ func (t *timedcache) Delete(key string) {
 	_ = t.store.Delete(&timedcacheEntry{
 		key: key,
 	})
+}
+
+type vmCacheEntry struct {
+	lock *sync.Mutex
+	vm   *compute.VirtualMachine
+}
+
+type vmCache struct {
+	cache         timedcache
+	vmClient      VirtualMachinesClient
+	resourceGroup string
+}
+
+func newVMCache(resourceGroup string, vmClient VirtualMachinesClient) *vmCache {
+	return &vmCache{
+		vmClient:      vmClient,
+		resourceGroup: resourceGroup,
+		cache:         newTimedcache(cacheExpiration),
+	}
+}
+
+func (vmc *vmCache) get(name string) (vm compute.VirtualMachine, err error) {
+	entry, err := vmc.cache.GetOrCreate(name, func() interface{} {
+		return &vmCacheEntry{
+			lock: &sync.Mutex{},
+			vm:   nil,
+		}
+	})
+	if err != nil {
+		return compute.VirtualMachine{}, err
+	}
+
+	vmEntry := entry.(*vmCacheEntry)
+	if vmEntry.vm == nil {
+		vmEntry.lock.Lock()
+		defer vmEntry.lock.Unlock()
+		if vmEntry.vm == nil {
+			// Currently InstanceView request are used by azure_zones, while the calls come after non-InstanceView
+			// request. If we first send an InstanceView request and then a non InstanceView request, the second
+			// request will still hit throttling. This is what happens now for cloud controller manager: In this
+			// case we do get instance view every time to fulfill the azure_zones requirement without hitting
+			// throttling.
+			// Consider adding separate parameter for controlling 'InstanceView' once node update issue #56276 is fixed
+			vm, err = vmc.vmClient.Get(vmc.resourceGroup, name, compute.InstanceView)
+			exists, realErr := checkResourceExistsFromError(err)
+			if realErr != nil {
+				return vm, realErr
+			}
+
+			if !exists {
+				return vm, cloudprovider.InstanceNotFound
+			}
+
+			vmEntry.vm = &vm
+		}
+		return *vmEntry.vm, nil
+	}
+
+	glog.V(6).Infof("vmCache.get() hits cache for(%s)", name)
+	return *vmEntry.vm, nil
+}
+
+func (vmc *vmCache) delete(name string) {
+	vmc.cache.Delete(name)
 }
