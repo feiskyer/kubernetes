@@ -20,62 +20,187 @@ import (
 	"sync"
 	"time"
 
-	"k8s.io/client-go/tools/cache"
+	"github.com/Azure/azure-sdk-for-go/arm/compute"
+
+	"k8s.io/kubernetes/pkg/cloudprovider"
 )
 
-type timedcacheEntry struct {
-	key  string
-	data interface{}
+var (
+	vmCacheTTL = 15 * time.Second
+)
+
+type getFunc func(key string) (interface{}, error)
+type listFunc func() (map[string]interface{}, error)
+
+// timedCache is a cache with TTL.
+type timedCache struct {
+	store       map[string]interface{}
+	lock        sync.Mutex
+	ttl         time.Duration
+	lastRefresh time.Time
+
+	getter getFunc
+	lister listFunc
 }
 
-type timedcache struct {
-	store cache.Store
-	lock  sync.Mutex
-}
-
-// ttl time.Duration
-func newTimedcache(ttl time.Duration) timedcache {
-	return timedcache{
-		store: cache.NewTTLStore(cacheKeyFunc, ttl),
+// newTimedcache creates a new timedCache with TTL.
+func newTimedcache(ttl time.Duration, getFunc getFunc, listFunc listFunc) *timedCache {
+	return &timedCache{
+		ttl:    ttl,
+		getter: getFunc,
+		lister: listFunc,
+		store:  make(map[string]interface{}),
 	}
 }
 
-func cacheKeyFunc(obj interface{}) (string, error) {
-	return obj.(*timedcacheEntry).key, nil
+// expired returns true if the cache is expired.
+func (t *timedCache) expired() bool {
+	return t.lastRefresh.Add(t.ttl).Before(time.Now())
 }
 
-func (t *timedcache) GetOrCreate(key string, createFunc func() interface{}) (interface{}, error) {
-	entry, exists, err := t.store.GetByKey(key)
-	if err != nil {
-		return nil, err
-	}
-	if exists {
-		return (entry.(*timedcacheEntry)).data, nil
-	}
-
+// Get gets data by key. It returns nil if data not found.
+func (t *timedCache) Get(key string) (interface{}, error) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
-	entry, exists, err = t.store.GetByKey(key)
-	if err != nil {
+
+	if t.expired() {
+		if err := t.refresh(""); err != nil {
+			return nil, err
+		}
+	}
+
+	entry, ok := t.store[key]
+	if ok {
+		return entry, nil
+	}
+
+	// not cache this vm yet, refresh by key
+	if err := t.refresh(key); err != nil {
 		return nil, err
 	}
-	if exists {
-		return (entry.(*timedcacheEntry)).data, nil
+	entry, ok = t.store[key]
+	if ok {
+		return entry, nil
 	}
 
-	if createFunc == nil {
-		return nil, nil
-	}
-	created := createFunc()
-	t.store.Add(&timedcacheEntry{
-		key:  key,
-		data: created,
-	})
-	return created, nil
+	// Key still not found, set it to nil. This is required to avoid
+	// relisting nonexist objects.
+	t.store[key] = nil
+	return nil, nil
 }
 
-func (t *timedcache) Delete(key string) {
-	_ = t.store.Delete(&timedcacheEntry{
-		key: key,
-	})
+// refresh updates cache by getter or lister. If key is an empty string,
+// then lister is used to update cache.
+// It should be only called under a lock.
+func (t *timedCache) refresh(key string) error {
+	// Refresh cache by getter.
+	if key != "" && t.getter != nil {
+		data, err := t.getter(key)
+		if err != nil {
+			return err
+		}
+
+		t.store[key] = data
+		t.lastRefresh = time.Now()
+		return nil
+	}
+
+	// Refresh cache by lister.
+	dataList, err := t.lister()
+	if err != nil {
+		return err
+	}
+	t.store = make(map[string]interface{})
+	for key, data := range dataList {
+		t.store[key] = data
+	}
+
+	t.lastRefresh = time.Now()
+	return nil
+}
+
+// Delete removes data from cache by key.
+func (t *timedCache) Delete(key string) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	delete(t.store, key)
+}
+
+// List gets a list of data from cache.
+func (t *timedCache) List() ([]interface{}, error) {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	if t.expired() {
+		if err := t.refresh(""); err != nil {
+			return nil, err
+		}
+	}
+
+	result := make([]interface{}, 0)
+	for _, data := range t.store {
+		if data == nil {
+			continue
+		}
+
+		result = append(result, data)
+	}
+	return result, nil
+}
+
+// AddOrUpdate adds new data or updates existing data in the cache.
+// If the data is nil, then it updates cache from getter.
+func (t *timedCache) AddOrUpdate(key string, data interface{}) error {
+	t.lock.Lock()
+	defer t.lock.Unlock()
+
+	if data != nil {
+		t.store[key] = data
+		return nil
+	}
+
+	return t.refresh(key)
+}
+
+func (az *Cloud) newVMCache() *timedCache {
+	getter := func(key string) (interface{}, error) {
+		vm, err := az.VirtualMachinesClient.Get(az.ResourceGroup, key, compute.InstanceView)
+		exists, realErr := checkResourceExistsFromError(err)
+		if realErr != nil {
+			return nil, realErr
+		}
+
+		if !exists {
+			return nil, cloudprovider.InstanceNotFound
+		}
+
+		return &vm, nil
+	}
+
+	lister := func() (map[string]interface{}, error) {
+		allNodes := map[string]interface{}{}
+
+		result, err := az.VirtualMachinesClient.List(az.ResourceGroup)
+		if err != nil {
+			return nil, err
+		}
+		moreResults := (result.Value != nil && len(*result.Value) > 0)
+		if moreResults {
+			for idx := range *result.Value {
+				vm := (*result.Value)[idx]
+				allNodes[*vm.Name] = &vm
+			}
+			moreResults = false
+			result, err = az.VirtualMachinesClient.ListNextResults(az.ResourceGroup, result)
+			if err != nil {
+				return nil, err
+			}
+			moreResults = (result.Value != nil && len(*result.Value) > 0)
+		}
+
+		return allNodes, nil
+	}
+
+	return newTimedcache(vmCacheTTL, getter, lister)
 }
