@@ -30,33 +30,38 @@
 		},
 		{
 			"ImportPath": "github.com/Azure/azure-sdk-for-go/arm/compute",
-			"Comment": "v12.1.0-beta",
-			"Rev": "934e2462aeb6e0c14186dcfeedd73a026d1b8eeb"
+			"Comment": "v12.4.0-beta",
+			"Rev": "f111fc2fa3861c5fdced76cae4c9c71821969577"
 		},
 		{
 			"ImportPath": "github.com/Azure/azure-sdk-for-go/arm/containerregistry",
-			"Comment": "v12.1.0-beta",
-			"Rev": "934e2462aeb6e0c14186dcfeedd73a026d1b8eeb"
+			"Comment": "v12.4.0-beta",
+			"Rev": "f111fc2fa3861c5fdced76cae4c9c71821969577"
 		},
 		{
 			"ImportPath": "github.com/Azure/azure-sdk-for-go/arm/disk",
-			"Comment": "v12.1.0-beta",
-			"Rev": "934e2462aeb6e0c14186dcfeedd73a026d1b8eeb"
+			"Comment": "v12.4.0-beta",
+			"Rev": "f111fc2fa3861c5fdced76cae4c9c71821969577"
 		},
 		{
 			"ImportPath": "github.com/Azure/azure-sdk-for-go/arm/network",
-			"Comment": "v12.1.0-beta",
-			"Rev": "934e2462aeb6e0c14186dcfeedd73a026d1b8eeb"
+			"Comment": "v12.4.0-beta",
+			"Rev": "f111fc2fa3861c5fdced76cae4c9c71821969577"
 		},
 		{
 			"ImportPath": "github.com/Azure/azure-sdk-for-go/arm/storage",
-			"Comment": "v12.1.0-beta",
-			"Rev": "934e2462aeb6e0c14186dcfeedd73a026d1b8eeb"
+			"Comment": "v12.4.0-beta",
+			"Rev": "f111fc2fa3861c5fdced76cae4c9c71821969577"
+		},
+		{
+			"ImportPath": "github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2017-12-01/compute",
+			"Comment": "v12.4.0-beta",
+			"Rev": "f111fc2fa3861c5fdced76cae4c9c71821969577"
 		},
 		{
 			"ImportPath": "github.com/Azure/azure-sdk-for-go/storage",
-			"Comment": "v12.1.0-beta",
-			"Rev": "934e2462aeb6e0c14186dcfeedd73a026d1b8eeb"
+			"Comment": "v12.4.0-beta",
+			"Rev": "f111fc2fa3861c5fdced76cae4c9c71821969577"
 		},
 		{
 			"ImportPath": "github.com/Azure/go-ansiterm",
@@ -68,33 +73,33 @@
 		},
 		{
 			"ImportPath": "github.com/Azure/go-autorest/autorest",
-			"Comment": "v9.1.0",
-			"Rev": "e14a70c556c8e0db173358d1a903dca345a8e75e"
+			"Comment": "v10.1.0",
+			"Rev": "5a06e9ddbe3c22262059b8e061777b9934f982bd"
 		},
 		{
 			"ImportPath": "github.com/Azure/go-autorest/autorest/adal",
-			"Comment": "v9.1.0",
-			"Rev": "e14a70c556c8e0db173358d1a903dca345a8e75e"
+			"Comment": "v10.1.0",
+			"Rev": "5a06e9ddbe3c22262059b8e061777b9934f982bd"
 		},
 		{
 			"ImportPath": "github.com/Azure/go-autorest/autorest/azure",
-			"Comment": "v9.1.0",
-			"Rev": "e14a70c556c8e0db173358d1a903dca345a8e75e"
+			"Comment": "v10.1.0",
+			"Rev": "5a06e9ddbe3c22262059b8e061777b9934f982bd"
 		},
 		{
 			"ImportPath": "github.com/Azure/go-autorest/autorest/date",
-			"Comment": "v9.1.0",
-			"Rev": "e14a70c556c8e0db173358d1a903dca345a8e75e"
+			"Comment": "v10.1.0",
+			"Rev": "5a06e9ddbe3c22262059b8e061777b9934f982bd"
 		},
 		{
 			"ImportPath": "github.com/Azure/go-autorest/autorest/to",
-			"Comment": "v9.1.0",
-			"Rev": "e14a70c556c8e0db173358d1a903dca345a8e75e"
+			"Comment": "v10.1.0",
+			"Rev": "5a06e9ddbe3c22262059b8e061777b9934f982bd"
 		},
 		{
 			"ImportPath": "github.com/Azure/go-autorest/autorest/validation",
-			"Comment": "v9.1.0",
-			"Rev": "e14a70c556c8e0db173358d1a903dca345a8e75e"
+			"Comment": "v10.1.0",
+			"Rev": "5a06e9ddbe3c22262059b8e061777b9934f982bd"
 		},
 		{
 			"ImportPath": "github.com/JeffAshton/win_pdh",
@@ -1001,8 +1006,8 @@
 		},
 		{
 			"ImportPath": "github.com/dgrijalva/jwt-go",
-			"Comment": "v3.0.0-4-g01aeca5",
-			"Rev": "01aeca54ebda6e0fbfafd0a524d234159c05ec20"
+			"Comment": "v3.1.0",
+			"Rev": "dbeaa9332f19a944acb5736b4456cfcc02140e29"
 		},
 		{
 			"ImportPath": "github.com/docker/distribution/digestset",
@@ -1151,17 +1156,17 @@
 		},
 		{
 			"ImportPath": "github.com/docker/go-connections/nat",
-			"Comment": "v0.2.1-30-g3ede32e",
+			"Comment": "v0.3.0",
 			"Rev": "3ede32e2033de7505e6500d6c868c2b9ed9f169d"
 		},
 		{
 			"ImportPath": "github.com/docker/go-connections/sockets",
-			"Comment": "v0.2.1-30-g3ede32e",
+			"Comment": "v0.3.0",
 			"Rev": "3ede32e2033de7505e6500d6c868c2b9ed9f169d"
 		},
 		{
 			"ImportPath": "github.com/docker/go-connections/tlsconfig",
-			"Comment": "v0.2.1-30-g3ede32e",
+			"Comment": "v0.3.0",
 			"Rev": "3ede32e2033de7505e6500d6c868c2b9ed9f169d"
 		},
 		{
@@ -2087,6 +2092,11 @@
 		{
 			"ImportPath": "github.com/mailru/easyjson/jwriter",
 			"Rev": "2f5df55504ebc322e4d52d34df6a1f5b503bf26d"
+		},
+		{
+			"ImportPath": "github.com/marstr/guid",
+			"Comment": "v1.1.0-2-g8bdf7d1",
+			"Rev": "8bdf7d1a087ccc975cf37dd6507da50698fd19ca"
 		},
 		{
 			"ImportPath": "github.com/matttproud/golang_protobuf_extensions/pbutil",
