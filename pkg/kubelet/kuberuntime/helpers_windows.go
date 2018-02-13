@@ -18,28 +18,37 @@ limitations under the License.
 
 package kuberuntime
 
-import (
-	"github.com/docker/docker/pkg/sysinfo"
-)
-
 const (
 	// Taken from https://docs.microsoft.com/en-us/virtualization/windowscontainers/manage-containers/resource-controls
 	minShares     = 1
 	maxShares     = 10000
 	milliCPUToCPU = 1000
+
+	// The default shares on Process isolation is 5000.
+	defaultSharesPerCPUProcess = 5000
+	// The default shares for Hyper-V isolation is 10.
+	defaultSharesPerCPUHyperV = 10
 )
 
 // milliCPUToShares converts milliCPU to CPU shares
-func milliCPUToShares(milliCPU int64) int64 {
+func milliCPUToShares(milliCPU int64, hyperv bool) int64 {
+	var defaultSharesPerCPU int64 = defaultSharesPerCPUProcess
+	if hyperv {
+		defaultSharesPerCPU = defaultSharesPerCPUHyperV
+	}
+
 	if milliCPU == 0 {
+		// Return here to really match kernel default for zero milliCPU.
+		return defaultSharesPerCPU
+	}
+
+	// Conceptually (milliCPU / milliCPUToCPU) * sharesPerCPU, but factored to improve rounding.
+	shares := (milliCPU * defaultSharesPerCPU) / milliCPUToCPU
+	if shares < minShares {
 		return minShares
 	}
-
-	totalCPU := sysinfo.NumCPU()
-	cpuShares := maxShares * milliCPU / int64(totalCPU) / milliCPUToCPU
-	if cpuShares < minShares {
-		cpuShares = minShares
+	if shares > maxShares {
+		return maxShares
 	}
-
-	return cpuShares
+	return shares
 }
