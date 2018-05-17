@@ -20,10 +20,12 @@ package kuberuntime
 
 import (
 	"github.com/docker/docker/pkg/sysinfo"
+	"github.com/golang/glog"
 
 	"k8s.io/api/core/v1"
 	kubeletapis "k8s.io/kubernetes/pkg/kubelet/apis"
 	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+	"k8s.io/kubernetes/pkg/securitycontext"
 )
 
 // applyPlatformSpecificContainerConfig applies platform specific configurations to runtimeapi.ContainerConfig.
@@ -37,6 +39,9 @@ func (m *kubeGenericRuntimeManager) applyPlatformSpecificContainerConfig(config 
 func (m *kubeGenericRuntimeManager) generateWindowsContainerConfig(container *v1.Container, pod *v1.Pod, uid *int64, username string) *runtimeapi.WindowsContainerConfig {
 	wc := &runtimeapi.WindowsContainerConfig{
 		Resources: &runtimeapi.WindowsContainerResources{},
+		SecurityContext: &runtimeapi.WindowsContainerSecurityContext{
+			NamespaceOptions: namespacesForPod(pod),
+		},
 	}
 
 	cpuRequest := container.Resources.Requests.Cpu()
@@ -75,6 +80,15 @@ func (m *kubeGenericRuntimeManager) generateWindowsContainerConfig(container *v1
 	memoryLimit := container.Resources.Limits.Memory().Value()
 	if memoryLimit != 0 {
 		wc.Resources.MemoryLimitInBytes = memoryLimit
+	}
+
+	// setup security context
+	effectiveSc := securitycontext.DetermineEffectiveSecurityContext(pod, container)
+	if effectiveSc.RunAsUser != nil {
+		glog.Warningf("Run as uid %d is not supported on Windows", *effectiveSc.RunAsUser)
+	}
+	if username != "" {
+		wc.SecurityContext.RunAsUsername = username
 	}
 
 	return wc
