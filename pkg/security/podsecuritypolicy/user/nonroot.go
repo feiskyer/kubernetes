@@ -17,9 +17,13 @@ limitations under the License.
 package user
 
 import (
+	"fmt"
+
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/policy"
+	psputil "k8s.io/kubernetes/pkg/security/podsecuritypolicy/util"
 )
 
 type nonRoot struct{}
@@ -32,7 +36,7 @@ func NewRunAsNonRoot(options *policy.RunAsUserStrategyOptions) (RunAsUserStrateg
 
 // Generate creates the uid based on policy rules.  This strategy does return a UID.  It assumes
 // that the user will specify a UID or the container image specifies a UID.
-func (s *nonRoot) Generate(pod *api.Pod, container *api.Container) (*int64, error) {
+func (s *nonRoot) Generate(pod *api.Pod, container *api.Container) (*intstr.Int64OrString, error) {
 	return nil, nil
 }
 
@@ -41,7 +45,7 @@ func (s *nonRoot) Generate(pod *api.Pod, container *api.Container) (*int64, erro
 // or if the UID is set it is not root.  Validation will fail if RunAsNonRoot is set to false.
 // In order to work properly this assumes that the kubelet performs a final check on runAsUser
 // or the image UID when runAsUser is nil.
-func (s *nonRoot) Validate(fldPath *field.Path, _ *api.Pod, _ *api.Container, runAsNonRoot *bool, runAsUser *int64) field.ErrorList {
+func (s *nonRoot) Validate(fldPath *field.Path, _ *api.Pod, _ *api.Container, runAsNonRoot *bool, runAsUser *intstr.Int64OrString) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if runAsNonRoot == nil && runAsUser == nil {
 		allErrs = append(allErrs, field.Required(fldPath.Child("runAsNonRoot"), "must be true"))
@@ -51,9 +55,16 @@ func (s *nonRoot) Validate(fldPath *field.Path, _ *api.Pod, _ *api.Container, ru
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("runAsNonRoot"), *runAsNonRoot, "must be true"))
 		return allErrs
 	}
-	if runAsUser != nil && *runAsUser == 0 {
-		allErrs = append(allErrs, field.Invalid(fldPath.Child("runAsUser"), *runAsUser, "running with the root UID is forbidden"))
-		return allErrs
+	if runAsUser != nil {
+		if runAsUser.Type == intstr.Int64 && runAsUser.IntVal == 0 {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("runAsUser"), *runAsUser, "running with the root UID is forbidden"))
+			return allErrs
+		}
+		if runAsUser.Type == intstr.String && psputil.IsRootUsername(runAsUser.StrVal) {
+			allErrs = append(allErrs, field.Invalid(fldPath.Child("runAsUser"), *runAsUser, fmt.Sprintf("running with the username %s is forbidden", runAsUser.StrVal)))
+			return allErrs
+		}
 	}
+
 	return allErrs
 }

@@ -17,6 +17,7 @@ limitations under the License.
 package user
 
 import (
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/policy"
@@ -33,11 +34,11 @@ func NewRunAsAny(options *policy.RunAsUserStrategyOptions) (RunAsUserStrategy, e
 }
 
 // Generate creates the uid based on policy rules.
-func (s *runAsAny) Generate(pod *api.Pod, container *api.Container) (*int64, error) {
+func (s *runAsAny) Generate(pod *api.Pod, container *api.Container) (*intstr.Int64OrString, error) {
 	return nil, nil
 }
 
 // Validate ensures that the specified values fall within the range of the strategy.
-func (s *runAsAny) Validate(fldPath *field.Path, _ *api.Pod, _ *api.Container, runAsNonRoot *bool, runAsUser *int64) field.ErrorList {
+func (s *runAsAny) Validate(fldPath *field.Path, _ *api.Pod, _ *api.Container, runAsNonRoot *bool, runAsUser *intstr.Int64OrString) field.ErrorList {
 	return field.ErrorList{}
 }

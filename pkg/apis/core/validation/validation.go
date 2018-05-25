@@ -3298,6 +3298,22 @@ func validateSysctls(sysctls []core.Sysctl, fldPath *field.Path) field.ErrorList
 	return allErrs
 }
 
+func validateRunAsUser(runAsUser intstr.Int64OrString, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+	if runAsUser.Type == intstr.Int64 {
+		for _, msg := range validation.IsValidUserID(runAsUser.IntVal) {
+			allErrs = append(allErrs, field.Invalid(fldPath, runAsUser.IntVal, msg))
+		}
+	} else if runAsUser.Type == intstr.String {
+		for _, msg := range validation.IsQualifiedName(runAsUser.StrVal) {
+			allErrs = append(allErrs, field.Invalid(fldPath, runAsUser.StrVal, msg))
+		}
+	} else {
+		allErrs = append(allErrs, field.InternalError(fldPath, fmt.Errorf("unknown type: %v", runAsUser.Type)))
+	}
+	return allErrs
+}
+
 // ValidatePodSecurityContext test that the specified PodSecurityContext has valid data.
 func ValidatePodSecurityContext(securityContext *core.PodSecurityContext, spec *core.PodSpec, specPath, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
@@ -3310,9 +3326,7 @@ func ValidatePodSecurityContext(securityContext *core.PodSecurityContext, spec *
 			}
 		}
 		if securityContext.RunAsUser != nil {
-			for _, msg := range validation.IsValidUserID(*securityContext.RunAsUser) {
-				allErrs = append(allErrs, field.Invalid(fldPath.Child("runAsUser"), *(securityContext.RunAsUser), msg))
-			}
+			allErrs = append(allErrs, validateRunAsUser(*securityContext.RunAsUser, fldPath.Child("runAsUser"))...)
 		}
 		if securityContext.RunAsGroup != nil {
 			for _, msg := range validation.IsValidGroupID(*securityContext.RunAsGroup) {
@@ -5049,9 +5063,7 @@ func ValidateSecurityContext(sc *core.SecurityContext, fldPath *field.Path) fiel
 	}
 
 	if sc.RunAsUser != nil {
-		for _, msg := range validation.IsValidUserID(*sc.RunAsUser) {
-			allErrs = append(allErrs, field.Invalid(fldPath.Child("runAsUser"), *sc.RunAsUser, msg))
-		}
+		allErrs = append(allErrs, validateRunAsUser(*sc.RunAsUser, fldPath.Child("runAsUser"))...)
 	}
 
 	if sc.RunAsGroup != nil {

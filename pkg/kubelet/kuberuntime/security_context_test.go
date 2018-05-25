@@ -17,11 +17,13 @@ limitations under the License.
 package kuberuntime
 
 import (
+	"testing"
+
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 func TestVerifyRunAsNonRoot(t *testing.T) {
@@ -45,6 +47,8 @@ func TestVerifyRunAsNonRoot(t *testing.T) {
 	}
 
 	rootUser := int64(0)
+	rootUserID := intstr.FromInt64(0)
+	rootUserName := intstr.FromString64("root")
 	anyUser := int64(1000)
 	runAsNonRootTrue := true
 	runAsNonRootFalse := false
@@ -64,7 +68,7 @@ func TestVerifyRunAsNonRoot(t *testing.T) {
 		{
 			desc: "Pass if RunAsNonRoot is not set",
 			sc: &v1.SecurityContext{
-				RunAsUser: &rootUser,
+				RunAsUser: &rootUserID,
 			},
 			uid:  &rootUser,
 			fail: false,
@@ -81,7 +85,7 @@ func TestVerifyRunAsNonRoot(t *testing.T) {
 			desc: "Pass if RunAsNonRoot is false (RunAsUser is root)",
 			sc: &v1.SecurityContext{
 				RunAsNonRoot: &runAsNonRootFalse,
-				RunAsUser:    &rootUser,
+				RunAsUser:    &rootUserID,
 			},
 			uid:  &rootUser,
 			fail: false,
@@ -90,7 +94,16 @@ func TestVerifyRunAsNonRoot(t *testing.T) {
 			desc: "Fail if container's RunAsUser is root and RunAsNonRoot is true",
 			sc: &v1.SecurityContext{
 				RunAsNonRoot: &runAsNonRootTrue,
-				RunAsUser:    &rootUser,
+				RunAsUser:    &rootUserID,
+			},
+			uid:  &rootUser,
+			fail: true,
+		},
+		{
+			desc: "Fail if container's RunAsUsername is root and RunAsNonRoot is true",
+			sc: &v1.SecurityContext{
+				RunAsNonRoot: &runAsNonRootTrue,
+				RunAsUser:    &rootUserName,
 			},
 			uid:  &rootUser,
 			fail: true,

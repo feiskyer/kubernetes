@@ -2814,7 +2814,7 @@ message PodSecurityContext {
   // PodSecurityContext, the value specified in SecurityContext takes precedence
   // for that container.
   // +optional
-  optional int64 runAsUser = 2;
+  optional k8s.io.apimachinery.pkg.util.intstr.Int64OrString runAsUser = 2;
 
   // The GID to run the entrypoint of the container process.
   // Uses runtime default if unset.
@@ -3882,7 +3882,7 @@ message SecurityContext {
   // May also be set in PodSecurityContext.  If set in both SecurityContext and
   // PodSecurityContext, the value specified in SecurityContext takes precedence.
   // +optional
-  optional int64 runAsUser = 4;
+  optional k8s.io.apimachinery.pkg.util.intstr.Int64OrString runAsUser = 4;
 
   // The GID to run the entrypoint of the container process.
   // Uses runtime default if unset.

@@ -25,6 +25,7 @@ import (
 	"github.com/golang/glog"
 	"k8s.io/api/core/v1"
 	kubetypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/types"
@@ -143,7 +144,12 @@ func (m *kubeGenericRuntimeManager) generatePodSandboxLinuxConfig(pod *v1.Pod) (
 	if pod.Spec.SecurityContext != nil {
 		sc := pod.Spec.SecurityContext
 		if sc.RunAsUser != nil {
-			lc.SecurityContext.RunAsUser = &runtimeapi.Int64Value{Value: int64(*sc.RunAsUser)}
+			if sc.RunAsUser.Type == intstr.Int64 {
+				lc.SecurityContext.RunAsUser = &runtimeapi.Int64Value{Value: sc.RunAsUser.IntVal}
+			} else {
+				lc.SecurityContext.RunAsUsername = sc.RunAsUser.StrVal
+			}
+
 		}
 		lc.SecurityContext.NamespaceOptions = namespacesForPod(pod)
 

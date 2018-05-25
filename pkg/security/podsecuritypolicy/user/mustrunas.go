@@ -19,6 +19,7 @@ package user
 import (
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	api "k8s.io/kubernetes/pkg/apis/core"
 	"k8s.io/kubernetes/pkg/apis/policy"
@@ -44,12 +45,13 @@ func NewMustRunAs(options *policy.RunAsUserStrategyOptions) (RunAsUserStrategy, 
 }
 
 // Generate creates the uid based on policy rules.  MustRunAs returns the first range's Min.
-func (s *mustRunAs) Generate(pod *api.Pod, container *api.Container) (*int64, error) {
-	return &s.opts.Ranges[0].Min, nil
+func (s *mustRunAs) Generate(pod *api.Pod, container *api.Container) (*intstr.Int64OrString, error) {
+	runAsUser := intstr.FromInt64(s.opts.Ranges[0].Min)
+	return &runAsUser, nil
 }
 
 // Validate ensures that the specified values fall within the range of the strategy.
-func (s *mustRunAs) Validate(fldPath *field.Path, _ *api.Pod, _ *api.Container, runAsNonRoot *bool, runAsUser *int64) field.ErrorList {
+func (s *mustRunAs) Validate(fldPath *field.Path, _ *api.Pod, _ *api.Container, runAsNonRoot *bool, runAsUser *intstr.Int64OrString) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if runAsUser == nil {
@@ -57,10 +59,16 @@ func (s *mustRunAs) Validate(fldPath *field.Path, _ *api.Pod, _ *api.Container, 
 		return allErrs
 	}
 
-	if !s.isValidUID(*runAsUser) {
+	if runAsUser.Type == intstr.Int64 && !s.isValidUID(runAsUser.IntVal) {
 		detail := fmt.Sprintf("must be in the ranges: %v", s.opts.Ranges)
 		allErrs = append(allErrs, field.Invalid(fldPath.Child("runAsUser"), *runAsUser, detail))
 	}
+
+	if runAsUser.Type == intstr.String {
+		detail := fmt.Sprintf("running with username is forbidden")
+		allErrs = append(allErrs, field.Invalid(fldPath.Child("runAsUser"), *runAsUser, detail))
+	}
+
 	return allErrs
 }
 

@@ -2527,13 +2527,13 @@ type PodSecurityContext struct {
 	// takes precedence for that container.
 	// +optional
 	SELinuxOptions *SELinuxOptions
-	// The UID to run the entrypoint of the container process.
+	// The UID or username to run the entrypoint of the container process.
 	// Defaults to user specified in image metadata if unspecified.
 	// May also be set in SecurityContext.  If set in both SecurityContext and
 	// PodSecurityContext, the value specified in SecurityContext takes precedence
 	// for that container.
 	// +optional
-	RunAsUser *int64
+	RunAsUser *intstr.Int64OrString
 	// The GID to run the entrypoint of the container process.
 	// Uses runtime default if unset.
 	// May also be set in SecurityContext.  If set in both SecurityContext and
@@ -4416,7 +4416,7 @@ type SecurityContext struct {
 	// May also be set in PodSecurityContext.  If set in both SecurityContext and
 	// PodSecurityContext, the value specified in SecurityContext takes precedence.
 	// +optional
-	RunAsUser *int64
+	RunAsUser *intstr.Int64OrString
 	// The GID to run the entrypoint of the container process.
 	// Uses runtime default if unset.
 	// May also be set in PodSecurityContext.  If set in both SecurityContext and

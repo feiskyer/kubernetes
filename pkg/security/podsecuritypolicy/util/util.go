@@ -236,3 +236,12 @@ func EqualStringSlices(a, b []string) bool {
 	}
 	return true
 }
+
+// IsRootUsername returns true if the username is root user.
+func IsRootUsername(username string) bool {
+	if strings.EqualFold(username, "root") || strings.EqualFold(username, "administrator") {
+		return true
+	}
+
+	return false
+}

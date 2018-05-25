@@ -47,8 +47,9 @@ type IntOrString struct {
 type Type int
 
 const (
-	Int    Type = iota // The IntOrString holds an int.
+	Int    Type = iota // The IntOrString holds an int32.
 	String             // The IntOrString holds a string.
+	Int64              // The IntOrString holds a int64.
 )
 
 // FromInt creates an IntOrString object with an int32 value. It is

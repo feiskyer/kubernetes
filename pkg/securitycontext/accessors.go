@@ -19,6 +19,7 @@ package securitycontext
 import (
 	"reflect"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
 	api "k8s.io/kubernetes/pkg/apis/core"
 )
 
@@ -28,7 +29,7 @@ type PodSecurityContextAccessor interface {
 	HostPID() bool
 	HostIPC() bool
 	SELinuxOptions() *api.SELinuxOptions
-	RunAsUser() *int64
+	RunAsUser() *intstr.Int64OrString
 	RunAsNonRoot() *bool
 	SupplementalGroups() []int64
 	FSGroup() *int64
@@ -42,7 +43,7 @@ type PodSecurityContextMutator interface {
 	SetHostPID(bool)
 	SetHostIPC(bool)
 	SetSELinuxOptions(*api.SELinuxOptions)
-	SetRunAsUser(*int64)
+	SetRunAsUser(*intstr.Int64OrString)
 	SetRunAsNonRoot(*bool)
 	SetSupplementalGroups([]int64)
 	SetFSGroup(*int64)
@@ -129,13 +130,13 @@ func (w *podSecurityContextWrapper) SetSELinuxOptions(v *api.SELinuxOptions) {
 	w.ensurePodSC()
 	w.podSC.SELinuxOptions = v
 }
-func (w *podSecurityContextWrapper) RunAsUser() *int64 {
+func (w *podSecurityContextWrapper) RunAsUser() *intstr.Int64OrString {
 	if w.podSC == nil {
 		return nil
 	}
 	return w.podSC.RunAsUser
 }
-func (w *podSecurityContextWrapper) SetRunAsUser(v *int64) {
+func (w *podSecurityContextWrapper) SetRunAsUser(v *intstr.Int64OrString) {
 	if w.podSC == nil && v == nil {
 		return
 	}
@@ -189,7 +190,7 @@ type ContainerSecurityContextAccessor interface {
 	Capabilities() *api.Capabilities
 	Privileged() *bool
 	SELinuxOptions() *api.SELinuxOptions
-	RunAsUser() *int64
+	RunAsUser() *intstr.Int64OrString
 	RunAsNonRoot() *bool
 	ReadOnlyRootFilesystem() *bool
 	AllowPrivilegeEscalation() *bool
@@ -203,7 +204,7 @@ type ContainerSecurityContextMutator interface {
 	SetCapabilities(*api.Capabilities)
 	SetPrivileged(*bool)
 	SetSELinuxOptions(*api.SELinuxOptions)
-	SetRunAsUser(*int64)
+	SetRunAsUser(*intstr.Int64OrString)
 	SetRunAsNonRoot(*bool)
 	SetReadOnlyRootFilesystem(*bool)
 	SetAllowPrivilegeEscalation(*bool)
@@ -270,13 +271,13 @@ func (w *containerSecurityContextWrapper) SetSELinuxOptions(v *api.SELinuxOption
 	w.ensureContainerSC()
 	w.containerSC.SELinuxOptions = v
 }
-func (w *containerSecurityContextWrapper) RunAsUser() *int64 {
+func (w *containerSecurityContextWrapper) RunAsUser() *intstr.Int64OrString {
 	if w.containerSC == nil {
 		return nil
 	}
 	return w.containerSC.RunAsUser
 }
-func (w *containerSecurityContextWrapper) SetRunAsUser(v *int64) {
+func (w *containerSecurityContextWrapper) SetRunAsUser(v *intstr.Int64OrString) {
 	if w.containerSC == nil && v == nil {
 		return
 	}
@@ -367,13 +368,13 @@ func (w *effectiveContainerSecurityContextWrapper) SetSELinuxOptions(v *api.SELi
 		w.containerSC.SetSELinuxOptions(v)
 	}
 }
-func (w *effectiveContainerSecurityContextWrapper) RunAsUser() *int64 {
+func (w *effectiveContainerSecurityContextWrapper) RunAsUser() *intstr.Int64OrString {
 	if v := w.containerSC.RunAsUser(); v != nil {
 		return v
 	}
 	return w.podSC.RunAsUser()
 }
-func (w *effectiveContainerSecurityContextWrapper) SetRunAsUser(v *int64) {
+func (w *effectiveContainerSecurityContextWrapper) SetRunAsUser(v *intstr.Int64OrString) {
 	if !reflect.DeepEqual(w.RunAsUser(), v) {
 		w.containerSC.SetRunAsUser(v)
 	}

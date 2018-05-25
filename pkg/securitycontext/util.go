@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // HasPrivilegedRequest returns the value of SecurityContext.Privileged, taking into account
@@ -97,7 +98,7 @@ func DetermineEffectiveSecurityContext(pod *v1.Pod, container *v1.Container) *v1
 	}
 
 	if containerSc.RunAsUser != nil {
-		effectiveSc.RunAsUser = new(int64)
+		effectiveSc.RunAsUser = new(intstr.Int64OrString)
 		*effectiveSc.RunAsUser = *containerSc.RunAsUser
 	}
 
@@ -136,7 +137,7 @@ func securityContextFromPodSecurityContext(pod *v1.Pod) *v1.SecurityContext {
 		*synthesized.SELinuxOptions = *pod.Spec.SecurityContext.SELinuxOptions
 	}
 	if pod.Spec.SecurityContext.RunAsUser != nil {
-		synthesized.RunAsUser = new(int64)
+		synthesized.RunAsUser = new(intstr.Int64OrString)
 		*synthesized.RunAsUser = *pod.Spec.SecurityContext.RunAsUser
 	}
 

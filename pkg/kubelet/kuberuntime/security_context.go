@@ -20,8 +20,10 @@ import (
 	"fmt"
 
 	"k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	runtimeapi "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
 	"k8s.io/kubernetes/pkg/security/apparmor"
+	psputil "k8s.io/kubernetes/pkg/security/podsecuritypolicy/util"
 	"k8s.io/kubernetes/pkg/securitycontext"
 )
 
@@ -79,8 +81,12 @@ func verifyRunAsNonRoot(pod *v1.Pod, container *v1.Container, uid *int64, userna
 	}
 
 	if effectiveSc.RunAsUser != nil {
-		if *effectiveSc.RunAsUser == 0 {
+		if effectiveSc.RunAsUser.Type == intstr.Int64 && effectiveSc.RunAsUser.IntVal == 0 {
 			return fmt.Errorf("container's runAsUser breaks non-root policy")
+		} else {
+			if psputil.IsRootUsername(effectiveSc.RunAsUser.StrVal) {
+				return fmt.Errorf("container's runAsUser breaks non-root policy")
+			}
 		}
 		return nil
 	}
@@ -106,7 +112,12 @@ func convertToRuntimeSecurityContext(securityContext *v1.SecurityContext) *runti
 		SelinuxOptions: convertToRuntimeSELinuxOption(securityContext.SELinuxOptions),
 	}
 	if securityContext.RunAsUser != nil {
-		sc.RunAsUser = &runtimeapi.Int64Value{Value: int64(*securityContext.RunAsUser)}
+		if securityContext.RunAsUser.Type == intstr.Int64 {
+			sc.RunAsUser = &runtimeapi.Int64Value{Value: securityContext.RunAsUser.IntVal}
+		} else {
+			sc.RunAsUsername = securityContext.RunAsUser.StrVal
+		}
+
 	}
 	if securityContext.Privileged != nil {
 		sc.Privileged = *securityContext.Privileged

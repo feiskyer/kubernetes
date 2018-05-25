@@ -79306,8 +79306,7 @@
      },
      "runAsUser": {
       "description": "The UID to run the entrypoint of the container process. Defaults to user specified in image metadata if unspecified. May also be set in SecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence for that container.",
-      "type": "integer",
-      "format": "int64"
+      "$ref": "#/definitions/io.k8s.apimachinery.pkg.util.intstr.Int64OrString"
      },
      "seLinuxOptions": {
       "description": "The SELinux context to be applied to all containers. If unspecified, the container runtime will allocate a random SELinux context for each container.  May also be set in SecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence for that container.",
@@ -80450,8 +80449,7 @@
      },
      "runAsUser": {
       "description": "The UID to run the entrypoint of the container process. Defaults to user specified in image metadata if unspecified. May also be set in PodSecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence.",
-      "type": "integer",
-      "format": "int64"
+      "$ref": "#/definitions/io.k8s.apimachinery.pkg.util.intstr.Int64OrString"
      },
      "seLinuxOptions": {
       "description": "The SELinux context to be applied to the container. If unspecified, the container runtime will allocate a random SELinux context for each container.  May also be set in PodSecurityContext.  If set in both SecurityContext and PodSecurityContext, the value specified in SecurityContext takes precedence.",
@@ -86535,6 +86533,10 @@
       "format": "byte"
      }
     }
+   },
+   "io.k8s.apimachinery.pkg.util.intstr.Int64OrString": {
+    "type": "string",
+    "format": "int64-or-string"
    },
    "io.k8s.apimachinery.pkg.util.intstr.IntOrString": {
     "type": "string",
