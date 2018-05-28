@@ -317,7 +317,7 @@ func ReadLogs(path, containerID string, opts *LogOptions, runtimeService interna
 					}
 				}
 				// Wait until the next log change.
-				if found, err := waitLogs(containerID, watcher, runtimeService); !found {
+				if found, err := waitLogs(containerID, watcher, runtimeService, stdout, stderr); !found {
 					return err
 				}
 				continue
@@ -369,15 +369,34 @@ func isContainerRunning(id string, r internalapi.RuntimeService) (bool, error) {
 	return true, nil
 }
 
+// outputStreamClosed returns true if both stdout and stderr have already been closed.
+func outputStreamClosed(stdout, stderr io.Writer) bool {
+	glog.Infof("checking stdout, stderr streams")
+	if _, err := stdout.Write([]byte{}); err == nil {
+		return false
+	}
+
+	if _, err := stderr.Write([]byte{}); err == nil {
+		return false
+	}
+
+	return true
+}
+
 // waitLogs wait for the next log write. It returns a boolean and an error. The boolean
 // indicates whether a new log is found; the error is error happens during waiting new logs.
-func waitLogs(id string, w *fsnotify.Watcher, runtimeService internalapi.RuntimeService) (bool, error) {
+func waitLogs(id string, w *fsnotify.Watcher, runtimeService internalapi.RuntimeService, stdout, stderr io.Writer) (bool, error) {
 	// no need to wait if the pod is not running
 	if running, err := isContainerRunning(id, runtimeService); !running {
 		return false, err
 	}
 	errRetry := 5
 	for {
+		// no need to wait if both stdout and stderr have already been closed.
+		if outputStreamClosed(stdout, stderr) {
+			return false, fmt.Errorf("stdout&stderr streams have already closed")
+		}
+
 		select {
 		case e := <-w.Events:
 			switch e.Op {
