@@ -219,8 +219,11 @@ func (c *Cloud) GetLabelsForVolume(ctx context.Context, pv *v1.PersistentVolume)
 		return nil, nil
 	}
 
-	// Get disk's resource group.
-	diskURI := pv.Spec.AzureDisk.DataDiskURI
+	return c.GetAzureDiskLabels(pv.Spec.AzureDisk.DataDiskURI)
+}
+
+// GetAzureDiskLabels gets availability zone labels for Azuredisk.
+func (c *Cloud) GetAzureDiskLabels(diskURI string) (map[string]string, error) {
 	diskName := path.Base(diskURI)
 	resourceGroup, err := getResourceGroupFromDiskURI(diskURI)
 	if err != nil {
