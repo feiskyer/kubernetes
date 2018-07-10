@@ -59,7 +59,7 @@ func (az *Cloud) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
 
 	if zone == "" {
 		glog.V(3).Infof("Availability zone is not enabled for current instance, falling back to fault domain")
-		return az.getZoneFromFaultDomain()
+		return az.getZoneFromFaultDomain(instanceInfoURL)
 	}
 
 	zoneNo, err := strconv.Atoi(zone)
@@ -75,12 +75,12 @@ func (az *Cloud) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
 
 // getZoneFromFaultDomain gets fault domain for the instance.
 // This is the fallback when availability zone is not enabled for the instance.
-func (az *Cloud) getZoneFromFaultDomain() (cloudprovider.Zone, error) {
+func (az *Cloud) getZoneFromFaultDomain(url string) (cloudprovider.Zone, error) {
 	faultMutex.Lock()
 	defer faultMutex.Unlock()
 	if faultDomain == nil {
 		var err error
-		faultDomain, err = fetchFaultDomain(instanceInfoURL)
+		faultDomain, err = fetchFaultDomain(url)
 		if err != nil {
 			return cloudprovider.Zone{}, err
 		}

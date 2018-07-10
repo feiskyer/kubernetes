@@ -1677,7 +1677,7 @@ func TestGetZone(t *testing.T) {
 	cloud := &Cloud{}
 	cloud.Location = "eastus"
 
-	zone, err := cloud.getZoneFromURL(ts.URL)
+	zone, err := cloud.getZoneFromFaultDomain(ts.URL)
 	if err != nil {
 		t.Errorf("Unexpected error: %v", err)
 	}
