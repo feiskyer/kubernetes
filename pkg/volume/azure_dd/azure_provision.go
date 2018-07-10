@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/kubernetes/pkg/cloudprovider/providers/azure"
 	"k8s.io/kubernetes/pkg/features"
 	"k8s.io/kubernetes/pkg/volume"
 	"k8s.io/kubernetes/pkg/volume/util"
@@ -102,6 +103,8 @@ func (p *azureDiskProvisioner) Provision(selectedNode *v1.Node, allowedTopologie
 	capacity := p.options.PVC.Spec.Resources.Requests[v1.ResourceName(v1.ResourceStorage)]
 	requestBytes := capacity.Value()
 	requestGB := int(util.RoundUpSize(requestBytes, 1024*1024*1024))
+	var zone *string
+	var zones *string
 
 	for k, v := range p.options.Parameters {
 		switch strings.ToLower(k) {
@@ -121,6 +124,12 @@ func (p *azureDiskProvisioner) Provision(selectedNode *v1.Node, allowedTopologie
 			fsType = strings.ToLower(v)
 		case "resourcegroup":
 			resourceGroup = v
+		case "zone":
+			singZone := v
+			zone = &singZone
+		case "zones":
+			zoneList := v
+			zones = &zoneList
 		default:
 			return nil, fmt.Errorf("AzureDisk - invalid option %s in storage class", k)
 		}
@@ -153,15 +162,32 @@ func (p *azureDiskProvisioner) Provision(selectedNode *v1.Node, allowedTopologie
 	// create disk
 	diskURI := ""
 	if kind == v1.AzureManagedDisk {
+		if zone != nil && zones != nil {
+			return nil, errors.New("both zone and zones StorageClass parameters must not be used at the same time")
+		}
 		tags := make(map[string]string)
 		if p.options.CloudTags != nil {
 			tags = *(p.options.CloudTags)
 		}
-		diskURI, err = diskController.CreateManagedDisk(name, skuName, resourceGroup, requestGB, tags)
+
+		volumeOptions := azure.ManagedDiskOptions{
+			DiskName:           name,
+			StorageAccountType: skuName,
+			ResourceGroup:      resourceGroup,
+			PVCName:            p.options.PVC.Name,
+			SizeGB:             requestGB,
+			Tags:               tags,
+			Zone:               zone,
+			Zones:              zones,
+		}
+		diskURI, err = diskController.CreateManagedDisk(volumeOptions)
 		if err != nil {
 			return nil, err
 		}
 	} else {
+		if zone != nil || zones != nil {
+			return nil, errors.New("zone and zones are only supported for managed disks")
+		}
 		if kind == v1.AzureDedicatedBlobDisk {
 			_, diskURI, _, err = diskController.CreateVolume(name, account, storageAccountType, location, requestGB)
 			if err != nil {
@@ -174,6 +200,8 @@ func (p *azureDiskProvisioner) Provision(selectedNode *v1.Node, allowedTopologie
 			}
 		}
 	}
+
+	// TODO: add labels for managed disks.
 
 	pv := &v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
