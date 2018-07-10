@@ -19,16 +19,23 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"sync"
+
+	"github.com/golang/glog"
 
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/kubernetes/pkg/cloudprovider"
 )
 
-const instanceInfoURL = "http://169.254.169.254/metadata/v1/InstanceInfo"
+const (
+	instanceInfoURL = "http://169.254.169.254/metadata/v1/InstanceInfo"
+	zoneMetadataURI = "instance/compute/zone"
+)
 
 var faultMutex = &sync.Mutex{}
 var faultDomain *string
@@ -39,18 +46,41 @@ type instanceInfo struct {
 	FaultDomain  string `json:"FD"`
 }
 
-// GetZone returns the Zone containing the current failure zone and locality region that the program is running in
-func (az *Cloud) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
-	return az.getZoneFromURL(instanceInfoURL)
+func (az *Cloud) makeZone(zoneNo int) string {
+	return fmt.Sprintf("%s-%d", az.Location, zoneNo)
 }
 
-// This is injectable for testing.
-func (az *Cloud) getZoneFromURL(url string) (cloudprovider.Zone, error) {
+// GetZone returns the Zone containing the current failure zone and locality region that the program is running in
+func (az *Cloud) GetZone(ctx context.Context) (cloudprovider.Zone, error) {
+	zone, err := az.metadata.Text(zoneMetadataURI)
+	if err != nil {
+		return cloudprovider.Zone{}, err
+	}
+
+	if zone == "" {
+		glog.V(3).Infof("Availability zone is not enabled for current instance, falling back to fault domain")
+		return az.getZoneFromFaultDomain()
+	}
+
+	zoneNo, err := strconv.Atoi(zone)
+	if err != nil {
+		return cloudprovider.Zone{}, fmt.Errorf("failed to parse zone number %q: %v", zone, err)
+	}
+
+	return cloudprovider.Zone{
+		FailureDomain: az.makeZone(zoneNo),
+		Region:        az.Location,
+	}, nil
+}
+
+// getZoneFromFaultDomain gets fault domain for the instance.
+// This is the fallback when availability zone is not enabled for the instance.
+func (az *Cloud) getZoneFromFaultDomain() (cloudprovider.Zone, error) {
 	faultMutex.Lock()
 	defer faultMutex.Unlock()
 	if faultDomain == nil {
 		var err error
-		faultDomain, err = fetchFaultDomain(url)
+		faultDomain, err = fetchFaultDomain(instanceInfoURL)
 		if err != nil {
 			return cloudprovider.Zone{}, err
 		}

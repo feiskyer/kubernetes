@@ -212,6 +212,8 @@ func (ss *scaleSet) GetInstanceTypeByNodeName(name string) (string, error) {
 }
 
 // GetZoneByNodeName gets cloudprovider.Zone by node name.
+// TODO: Azure Go SDK doesn't support AZ for VirtualMachineScaleSetVM yet. Add AZ support
+// after it is supported.
 func (ss *scaleSet) GetZoneByNodeName(name string) (cloudprovider.Zone, error) {
 	managedByAS, err := ss.isNodeManagedByAvailabilitySet(name)
 	if err != nil {

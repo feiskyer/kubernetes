@@ -415,6 +415,20 @@ func (as *availabilitySet) GetZoneByNodeName(name string) (cloudprovider.Zone, e
 		return cloudprovider.Zone{}, err
 	}
 
+	// Get availability zone for the instance.
+	if vm.Zones != nil && len(*vm.Zones) > 0 {
+		zones := *vm.Zones
+		zoneNo, err := strconv.Atoi(zones[0])
+		if err != nil {
+			return cloudprovider.Zone{}, fmt.Errorf("failed to parse zone %q: %v", zones[0], err)
+		}
+		return cloudprovider.Zone{
+			FailureDomain: as.makeZone(zoneNo),
+			Region:        *(vm.Location),
+		}, nil
+	}
+
+	// Availability zones is not enabled, falling back to fault domain.
 	failureDomain := strconv.Itoa(int(*vm.VirtualMachineProperties.InstanceView.PlatformFaultDomain))
 	zone := cloudprovider.Zone{
 		FailureDomain: failureDomain,
