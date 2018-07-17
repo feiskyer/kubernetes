@@ -880,3 +880,32 @@ func (az *Cloud) getVmssMachineID(scaleSetName, instanceID string) string {
 		scaleSetName,
 		instanceID)
 }
+
+// GetNodeStatusByName gets the node status by node name.
+func (ss *scaleSet) GetNodeStatusByName(name string) (string, error) {
+	managedByAS, err := ss.isNodeManagedByAvailabilitySet(name)
+	if err != nil {
+		glog.Errorf("Failed to check isNodeManagedByAvailabilitySet: %v", err)
+		return "", err
+	}
+	if managedByAS {
+		// vm is managed by availability set.
+		return ss.availabilitySet.GetNodeStatusByName(name)
+	}
+
+	_, _, vm, err := ss.getVmssVM(name)
+	if err != nil {
+		return "", err
+	}
+
+	if vm.InstanceView != nil && vm.InstanceView.Statuses != nil {
+		statuses := *vm.InstanceView.Statuses
+		for _, state := range statuses {
+			if strings.HasPrefix(*state.Code, powerStatePrefix) {
+				return *state.Code, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("unable to get node's power state for %q", name)
+}

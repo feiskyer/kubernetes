@@ -733,3 +733,23 @@ func generateStorageAccountName(accountNamePrefix string) string {
 	}
 	return accountName
 }
+
+// GetNodeStatusByName gets the node status by node name.
+func (as *availabilitySet) GetNodeStatusByName(name string) (string, error) {
+	machine, err := as.getVirtualMachine(types.NodeName(name))
+	if err != nil {
+		glog.Errorf("as.GetNodeStatusByName(%s) failed: as.getVirtualMachine(%s) err=%v", name, name, err)
+		return "", err
+	}
+
+	if machine.InstanceView != nil && machine.InstanceView.Statuses != nil {
+		statuses := *machine.InstanceView.Statuses
+		for _, state := range statuses {
+			if strings.HasPrefix(*state.Code, powerStatePrefix) {
+				return *state.Code, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("unable to get node's power state for %q", name)
+}

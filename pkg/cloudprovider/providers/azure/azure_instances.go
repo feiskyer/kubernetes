@@ -28,6 +28,11 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
+const (
+	powerStatePrefix  = "PowerState"
+	powerStateStopped = "PowerState/stopped"
+)
+
 // NodeAddresses returns the addresses of the specified instance.
 func (az *Cloud) NodeAddresses(ctx context.Context, name types.NodeName) ([]v1.NodeAddress, error) {
 	addressGetter := func(nodeName types.NodeName) ([]v1.NodeAddress, error) {
@@ -116,7 +121,15 @@ func (az *Cloud) InstanceExistsByProviderID(ctx context.Context, providerID stri
 
 // InstanceShutdownByProviderID returns true if the instance is in safe state to detach volumes
 func (az *Cloud) InstanceShutdownByProviderID(ctx context.Context, providerID string) (bool, error) {
-	return false, cloudprovider.NotImplemented
+	name, err := az.vmSet.GetNodeNameByProviderID(providerID)
+	if err != nil {
+		return false, err
+	}
+
+	status, err := az.vmSet.GetNodeStatusByName(name)
+	if err != nil {
+		return false, err
+	}
 }
 
 func (az *Cloud) isCurrentInstance(name types.NodeName) (bool, error) {

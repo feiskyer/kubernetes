@@ -40,6 +40,8 @@ type VMSet interface {
 	GetPrimaryInterface(nodeName string) (network.Interface, error)
 	// GetNodeNameByProviderID gets the node name by provider ID.
 	GetNodeNameByProviderID(providerID string) (types.NodeName, error)
+	// GetNodeStatusByName gets the node status by node name.
+	GetNodeStatusByName(name string) (string, error)
 
 	// GetZoneByNodeName gets cloudprovider.Zone by node name.
 	GetZoneByNodeName(name string) (cloudprovider.Zone, error)
