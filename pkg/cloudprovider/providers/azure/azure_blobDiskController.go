@@ -588,6 +588,28 @@ func (c *BlobDiskController) findSANameForDisk(storageAccountType storage.SkuNam
 	return SAName, nil
 }
 
+// GetActiveZones returns all the zones in which k8s nodes are currently running.
+func (c *BlobDiskController) GetActiveZones() (sets.String, error) {
+	cloud := c.common.cloud
+	if cloud.nodeInformerSynced == nil {
+		return nil, fmt.Errorf("Azure cloud provider doesn't have informers set")
+	}
+
+	cloud.nodeZonesLock.Lock()
+	defer cloud.nodeZonesLock.Unlock()
+	if !cloud.nodeInformerSynced() {
+		return nil, fmt.Errorf("node informer is not synced when trying to GetActiveZones")
+	}
+
+	zones := sets.NewString()
+	for zone, nodes := range cloud.nodeZones {
+		if len(nodes) > 0 {
+			zones.Insert(zone)
+		}
+	}
+	return zones, nil
+}
+
 //Gets storage account exist, provisionStatus, Error if any
 func (c *BlobDiskController) getStorageAccountState(storageAccountName string) (bool, storage.ProvisioningState, error) {
 	ctx, cancel := getContextWithCancel()
