@@ -145,6 +145,9 @@ type azClientConfig struct {
 	//Details: https://docs.microsoft.com/en-us/azure/azure-resource-manager/resource-manager-request-limits
 	rateLimiterReader flowcontrol.RateLimiter
 	rateLimiterWriter flowcontrol.RateLimiter
+
+	CloudProviderBackoffRetries  int
+	CloudProviderBackoffDuration int
 }
 
 // azVirtualMachinesClient implements VirtualMachinesClient.
@@ -163,6 +166,8 @@ func newAzVirtualMachinesClient(config *azClientConfig) *azVirtualMachinesClient
 	virtualMachinesClient.BaseURI = config.resourceManagerEndpoint
 	virtualMachinesClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	virtualMachinesClient.PollingDelay = 5 * time.Second
+	virtualMachinesClient.RetryAttempts = config.CloudProviderBackoffRetries
+	virtualMachinesClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&virtualMachinesClient.Client)
 
 	return &azVirtualMachinesClient{
@@ -254,6 +259,8 @@ func newAzInterfacesClient(config *azClientConfig) *azInterfacesClient {
 	interfacesClient.BaseURI = config.resourceManagerEndpoint
 	interfacesClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	interfacesClient.PollingDelay = 5 * time.Second
+	interfacesClient.RetryAttempts = config.CloudProviderBackoffRetries
+	interfacesClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&interfacesClient.Client)
 
 	return &azInterfacesClient{
@@ -333,6 +340,8 @@ func newAzLoadBalancersClient(config *azClientConfig) *azLoadBalancersClient {
 	loadBalancerClient.BaseURI = config.resourceManagerEndpoint
 	loadBalancerClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	loadBalancerClient.PollingDelay = 5 * time.Second
+	loadBalancerClient.RetryAttempts = config.CloudProviderBackoffRetries
+	loadBalancerClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&loadBalancerClient.Client)
 
 	return &azLoadBalancersClient{
@@ -449,6 +458,8 @@ func newAzPublicIPAddressesClient(config *azClientConfig) *azPublicIPAddressesCl
 	publicIPAddressClient.BaseURI = config.resourceManagerEndpoint
 	publicIPAddressClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	publicIPAddressClient.PollingDelay = 5 * time.Second
+	publicIPAddressClient.RetryAttempts = config.CloudProviderBackoffRetries
+	publicIPAddressClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&publicIPAddressClient.Client)
 
 	return &azPublicIPAddressesClient{
@@ -564,6 +575,8 @@ func newAzSubnetsClient(config *azClientConfig) *azSubnetsClient {
 	subnetsClient.BaseURI = config.resourceManagerEndpoint
 	subnetsClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	subnetsClient.PollingDelay = 5 * time.Second
+	subnetsClient.RetryAttempts = config.CloudProviderBackoffRetries
+	subnetsClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&subnetsClient.Client)
 
 	return &azSubnetsClient{
@@ -679,6 +692,8 @@ func newAzSecurityGroupsClient(config *azClientConfig) *azSecurityGroupsClient {
 	securityGroupsClient.BaseURI = config.resourceManagerEndpoint
 	securityGroupsClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	securityGroupsClient.PollingDelay = 5 * time.Second
+	securityGroupsClient.RetryAttempts = config.CloudProviderBackoffRetries
+	securityGroupsClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&securityGroupsClient.Client)
 
 	return &azSecurityGroupsClient{
@@ -794,6 +809,8 @@ func newAzVirtualMachineScaleSetsClient(config *azClientConfig) *azVirtualMachin
 	virtualMachineScaleSetsClient.BaseURI = config.resourceManagerEndpoint
 	virtualMachineScaleSetsClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	virtualMachineScaleSetsClient.PollingDelay = 5 * time.Second
+	virtualMachineScaleSetsClient.RetryAttempts = config.CloudProviderBackoffRetries
+	virtualMachineScaleSetsClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&virtualMachineScaleSetsClient.Client)
 
 	return &azVirtualMachineScaleSetsClient{
@@ -910,6 +927,8 @@ func newAzVirtualMachineScaleSetVMsClient(config *azClientConfig) *azVirtualMach
 	virtualMachineScaleSetVMsClient.BaseURI = config.resourceManagerEndpoint
 	virtualMachineScaleSetVMsClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	virtualMachineScaleSetVMsClient.PollingDelay = 5 * time.Second
+	virtualMachineScaleSetVMsClient.RetryAttempts = config.CloudProviderBackoffRetries
+	virtualMachineScaleSetVMsClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&virtualMachineScaleSetVMsClient.Client)
 
 	return &azVirtualMachineScaleSetVMsClient{
@@ -1018,6 +1037,8 @@ func newAzRoutesClient(config *azClientConfig) *azRoutesClient {
 	routesClient.BaseURI = config.resourceManagerEndpoint
 	routesClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	routesClient.PollingDelay = 5 * time.Second
+	routesClient.RetryAttempts = config.CloudProviderBackoffRetries
+	routesClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&routesClient.Client)
 
 	return &azRoutesClient{
@@ -1087,6 +1108,8 @@ func newAzRouteTablesClient(config *azClientConfig) *azRouteTablesClient {
 	routeTablesClient.BaseURI = config.resourceManagerEndpoint
 	routeTablesClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	routeTablesClient.PollingDelay = 5 * time.Second
+	routeTablesClient.RetryAttempts = config.CloudProviderBackoffRetries
+	routeTablesClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&routeTablesClient.Client)
 
 	return &azRouteTablesClient{
@@ -1148,6 +1171,8 @@ func newAzStorageAccountClient(config *azClientConfig) *azStorageAccountClient {
 	storageAccountClient := storage.NewAccountsClientWithBaseURI(config.resourceManagerEndpoint, config.subscriptionID)
 	storageAccountClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	storageAccountClient.PollingDelay = 5 * time.Second
+	storageAccountClient.RetryAttempts = config.CloudProviderBackoffRetries
+	storageAccountClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&storageAccountClient.Client)
 
 	return &azStorageAccountClient{
@@ -1259,6 +1284,8 @@ func newAzDisksClient(config *azClientConfig) *azDisksClient {
 	disksClient := compute.NewDisksClientWithBaseURI(config.resourceManagerEndpoint, config.subscriptionID)
 	disksClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	disksClient.PollingDelay = 5 * time.Second
+	disksClient.RetryAttempts = config.CloudProviderBackoffRetries
+	disksClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&disksClient.Client)
 
 	return &azDisksClient{
@@ -1345,6 +1372,8 @@ func newAzVirtualMachineSizesClient(config *azClientConfig) *azVirtualMachineSiz
 	VirtualMachineSizesClient.BaseURI = config.resourceManagerEndpoint
 	VirtualMachineSizesClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
 	VirtualMachineSizesClient.PollingDelay = 5 * time.Second
+	VirtualMachineSizesClient.RetryAttempts = config.CloudProviderBackoffRetries
+	VirtualMachineSizesClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
 	configureUserAgent(&VirtualMachineSizesClient.Client)
 
 	return &azVirtualMachineSizesClient{

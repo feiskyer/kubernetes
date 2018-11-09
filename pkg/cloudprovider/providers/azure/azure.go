@@ -22,11 +22,9 @@ import (
 	"io/ioutil"
 	"strings"
 	"sync"
-	"time"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
 	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -51,9 +49,7 @@ const (
 	rateLimitQPSDefault          = 1.0
 	rateLimitBucketDefault       = 5
 	backoffRetriesDefault        = 6
-	backoffExponentDefault       = 1.5
-	backoffDurationDefault       = 5 // in seconds
-	backoffJitterDefault         = 1.0
+	backoffDurationDefault       = 5   // in seconds
 	maximumLoadBalancerRuleCount = 148 // According to Azure LB rule default limit
 
 	vmTypeVMSS     = "vmss"
@@ -158,7 +154,6 @@ type Cloud struct {
 	StorageAccountClient    StorageAccountClient
 	DisksClient             DisksClient
 	FileClient              FileClient
-	resourceRequestBackoff  wait.Backoff
 	metadata                *InstanceMetadataService
 	vmSet                   VMSet
 
@@ -264,17 +259,44 @@ func NewCloud(configReader io.Reader) (cloudprovider.Interface, error) {
 			config.CloudProviderRateLimitBucketWrite)
 	}
 
+	// Conditionally configure resource request backoff
+	if config.CloudProviderBackoff {
+		// Assign backoff defaults if no configuration was passed in
+		if config.CloudProviderBackoffRetries == 0 {
+			config.CloudProviderBackoffRetries = backoffRetriesDefault
+		}
+		if config.CloudProviderBackoffDuration == 0 {
+			config.CloudProviderBackoffDuration = backoffDurationDefault
+		}
+		// Log warning for deprecated options.
+		if config.CloudProviderBackoffExponent != 0 {
+			klog.Warning("Azure cloud provider config 'cloudProviderBackoffExponent' has been deprecated. 2 is always used as the backoff exponent.")
+		}
+		if config.CloudProviderBackoffJitter != 0 {
+			klog.Warning("Azure cloud provider config 'cloudProviderBackoffJitter' has been deprecated. 2 is always used as the backoff exponent.")
+		}
+		klog.V(2).Infof("Azure cloudprovider using try backoff: retries=%d, exponent=2, duration=%d",
+			config.CloudProviderBackoffRetries,
+			config.CloudProviderBackoffDuration)
+	} else {
+		// CloudProviderBackoffRetries will be set to 1 by default as the requirements of Azure SDK.
+		config.CloudProviderBackoffRetries = 1
+		config.CloudProviderBackoffDuration = backoffDurationDefault
+	}
+
 	// Do not add master nodes to standard LB by default.
 	if config.ExcludeMasterFromStandardLB == nil {
 		config.ExcludeMasterFromStandardLB = &defaultExcludeMasterFromStandardLB
 	}
 
 	azClientConfig := &azClientConfig{
-		subscriptionID:          config.SubscriptionID,
-		resourceManagerEndpoint: env.ResourceManagerEndpoint,
-		servicePrincipalToken:   servicePrincipalToken,
-		rateLimiterReader:       operationPollRateLimiter,
-		rateLimiterWriter:       operationPollRateLimiterWrite,
+		subscriptionID:               config.SubscriptionID,
+		resourceManagerEndpoint:      env.ResourceManagerEndpoint,
+		servicePrincipalToken:        servicePrincipalToken,
+		rateLimiterReader:            operationPollRateLimiter,
+		rateLimiterWriter:            operationPollRateLimiterWrite,
+		CloudProviderBackoffRetries:  config.CloudProviderBackoffRetries,
+		CloudProviderBackoffDuration: config.CloudProviderBackoffDuration,
 	}
 	az := Cloud{
 		Config:             *config,
@@ -298,34 +320,6 @@ func NewCloud(configReader io.Reader) (cloudprovider.Interface, error) {
 		VirtualMachineScaleSetsClient:   newAzVirtualMachineScaleSetsClient(azClientConfig),
 		VirtualMachineScaleSetVMsClient: newAzVirtualMachineScaleSetVMsClient(azClientConfig),
 		FileClient:                      &azureFileClient{env: *env},
-	}
-
-	// Conditionally configure resource request backoff
-	if az.CloudProviderBackoff {
-		// Assign backoff defaults if no configuration was passed in
-		if az.CloudProviderBackoffRetries == 0 {
-			az.CloudProviderBackoffRetries = backoffRetriesDefault
-		}
-		if az.CloudProviderBackoffExponent == 0 {
-			az.CloudProviderBackoffExponent = backoffExponentDefault
-		}
-		if az.CloudProviderBackoffDuration == 0 {
-			az.CloudProviderBackoffDuration = backoffDurationDefault
-		}
-		if az.CloudProviderBackoffJitter == 0 {
-			az.CloudProviderBackoffJitter = backoffJitterDefault
-		}
-		az.resourceRequestBackoff = wait.Backoff{
-			Steps:    az.CloudProviderBackoffRetries,
-			Factor:   az.CloudProviderBackoffExponent,
-			Duration: time.Duration(az.CloudProviderBackoffDuration) * time.Second,
-			Jitter:   az.CloudProviderBackoffJitter,
-		}
-		klog.V(2).Infof("Azure cloudprovider using try backoff: retries=%d, exponent=%f, duration=%d, jitter=%f",
-			az.CloudProviderBackoffRetries,
-			az.CloudProviderBackoffExponent,
-			az.CloudProviderBackoffDuration,
-			az.CloudProviderBackoffJitter)
 	}
 
 	az.metadata, err = NewInstanceMetadataService(metadataURL)

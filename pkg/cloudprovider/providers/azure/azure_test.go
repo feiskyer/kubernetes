@@ -51,8 +51,6 @@ func TestParseConfig(t *testing.T) {
 		"cloud":"AzurePublicCloud",
 		"cloudProviderBackoff": true,
 		"cloudProviderBackoffDuration": 1,
-		"cloudProviderBackoffExponent": 1,
-		"cloudProviderBackoffJitter": 1,
 		"cloudProviderBackoffRetries": 1,
 		"cloudProviderRatelimit": true,
 		"cloudProviderRateLimitBucket": 1,
@@ -88,8 +86,6 @@ func TestParseConfig(t *testing.T) {
 		},
 		CloudProviderBackoff:              true,
 		CloudProviderBackoffDuration:      1,
-		CloudProviderBackoffExponent:      1,
-		CloudProviderBackoffJitter:        1,
 		CloudProviderBackoffRetries:       1,
 		CloudProviderRateLimit:            true,
 		CloudProviderRateLimitBucket:      1,
@@ -1569,9 +1565,7 @@ routeTableName: --route-table-name--
 primaryAvailabilitySetName: --primary-availability-set-name--
 cloudProviderBackoff: true
 cloudProviderBackoffRetries: 6
-cloudProviderBackoffExponent: 1.5
 cloudProviderBackoffDuration: 5
-cloudProviderBackoffJitter: 1.0
 cloudProviderRatelimit: true
 cloudProviderRateLimitQPS: 0.5
 cloudProviderRateLimitBucket: 5
@@ -1627,14 +1621,8 @@ func validateConfig(t *testing.T, config string) {
 	if azureCloud.CloudProviderBackoffRetries != 6 {
 		t.Errorf("got incorrect value for CloudProviderBackoffRetries")
 	}
-	if azureCloud.CloudProviderBackoffExponent != 1.5 {
-		t.Errorf("got incorrect value for CloudProviderBackoffExponent")
-	}
 	if azureCloud.CloudProviderBackoffDuration != 5 {
 		t.Errorf("got incorrect value for CloudProviderBackoffDuration")
-	}
-	if azureCloud.CloudProviderBackoffJitter != 1.0 {
-		t.Errorf("got incorrect value for CloudProviderBackoffJitter")
 	}
 	if azureCloud.CloudProviderRateLimit != true {
 		t.Errorf("got incorrect value for CloudProviderRateLimit")

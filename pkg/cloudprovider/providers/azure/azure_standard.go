@@ -26,16 +26,16 @@ import (
 	"strconv"
 	"strings"
 
-	"k8s.io/api/core/v1"
-	cloudprovider "k8s.io/cloud-provider"
-
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2018-10-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2017-09-01/network"
 	"github.com/Azure/go-autorest/autorest/to"
+
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog"
 )
 
@@ -334,7 +334,7 @@ func (as *availabilitySet) GetInstanceIDByNodeName(name string) (string, error) 
 	if err != nil {
 		if as.CloudProviderBackoff {
 			klog.V(2).Infof("GetInstanceIDByNodeName(%s) backing off", name)
-			machine, err = as.GetVirtualMachineWithRetry(types.NodeName(name))
+			machine, err = as.getVirtualMachine(types.NodeName(name))
 			if err != nil {
 				klog.V(2).Infof("GetInstanceIDByNodeName(%s) abort backoff", name)
 				return "", err
@@ -460,9 +460,9 @@ func (as *availabilitySet) GetIPByNodeName(name string) (string, string, error) 
 // getAgentPoolAvailabiliySets lists the virtual machines for the resource group and then builds
 // a list of availability sets that match the nodes available to k8s.
 func (as *availabilitySet) getAgentPoolAvailabiliySets(nodes []*v1.Node) (agentPoolAvailabilitySets *[]string, err error) {
-	vms, err := as.VirtualMachineClientListWithRetry(as.ResourceGroup)
+	vms, err := as.ListVirtualMachines(as.ResourceGroup)
 	if err != nil {
-		klog.Errorf("as.getNodeAvailabilitySet - VirtualMachineClientListWithRetry failed, err=%v", err)
+		klog.Errorf("as.getNodeAvailabilitySet - ListVirtualMachines failed, err=%v", err)
 		return nil, err
 	}
 	vmNameToAvailabilitySetID := make(map[string]string, len(vms))
@@ -579,7 +579,7 @@ func extractResourceGroupByPipID(pipID string) (string, error) {
 func (as *availabilitySet) getPrimaryInterfaceWithVMSet(nodeName, vmSetName string) (network.Interface, error) {
 	var machine compute.VirtualMachine
 
-	machine, err := as.GetVirtualMachineWithRetry(types.NodeName(nodeName))
+	machine, err := as.getVirtualMachine(types.NodeName(nodeName))
 	if err != nil {
 		klog.V(2).Infof("GetPrimaryInterface(%s, %s) abort backoff", nodeName, vmSetName)
 		return network.Interface{}, err
@@ -695,18 +695,7 @@ func (as *availabilitySet) ensureHostInPool(service *v1.Service, nodeName types.
 
 		nicName := *nic.Name
 		klog.V(3).Infof("nicupdate(%s): nic(%s) - updating", serviceName, nicName)
-		ctx, cancel := getContextWithCancel()
-		defer cancel()
-		resp, err := as.InterfacesClient.CreateOrUpdate(ctx, as.ResourceGroup, *nic.Name, nic)
-		klog.V(10).Infof("InterfacesClient.CreateOrUpdate(%q): end", *nic.Name)
-		if as.CloudProviderBackoff && shouldRetryHTTPRequest(resp, err) {
-			klog.V(2).Infof("nicupdate(%s) backing off: nic(%s) - updating, err=%v", serviceName, nicName, err)
-			retryErr := as.CreateOrUpdateInterfaceWithRetry(service, nic)
-			if retryErr != nil {
-				err = retryErr
-				klog.V(2).Infof("nicupdate(%s) abort backoff: nic(%s) - updating", serviceName, nicName)
-			}
-		}
+		err := as.CreateOrUpdateInterface(service, nic)
 		if err != nil {
 			return err
 		}
