@@ -122,6 +122,11 @@ func (az *Cloud) EnsureLoadBalancer(ctx context.Context, clusterName string, ser
 	serviceName := getServiceName(service)
 	klog.V(5).Infof("ensureloadbalancer(%s): START clusterName=%q", serviceName, clusterName)
 
+	flippedService := flipServiceInternalAnnotation(service)
+	if _, err := az.reconcileLoadBalancer(clusterName, flippedService, nil, false /* wantLb */); err != nil {
+		return nil, err
+	}
+
 	lb, err := az.reconcileLoadBalancer(clusterName, service, nodes, true /* wantLb */)
 	if err != nil {
 		return nil, err
@@ -142,11 +147,6 @@ func (az *Cloud) EnsureLoadBalancer(ctx context.Context, clusterName string, ser
 	}
 
 	updateService := updateServiceLoadBalancerIP(service, to.String(serviceIP))
-	flippedService := flipServiceInternalAnnotation(updateService)
-	if _, err := az.reconcileLoadBalancer(clusterName, flippedService, nil, false /* wantLb */); err != nil {
-		return nil, err
-	}
-
 	if _, err := az.reconcilePublicIP(clusterName, updateService, lb, true /* wantLb */); err != nil {
 		return nil, err
 	}
