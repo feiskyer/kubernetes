@@ -1494,6 +1494,8 @@ func findProbe(probes []network.Probe, probe network.Probe) bool {
 
 func findRule(rules []network.LoadBalancingRule, rule network.LoadBalancingRule) bool {
 	for _, existingRule := range rules {
+		klog.Infof("FEI: rule name %s <-> %s", to.String(existingRule.Name), to.String(rule.Name))
+		klog.Infof("FEI: rule format: %#v <-> %#v", *existingRule.LoadBalancingRulePropertiesFormat, *rule.LoadBalancingRulePropertiesFormat)
 		if strings.EqualFold(to.String(existingRule.Name), to.String(rule.Name)) &&
 			equalLoadBalancingRulePropertiesFormat(existingRule.LoadBalancingRulePropertiesFormat, rule.LoadBalancingRulePropertiesFormat) {
 			return true
