@@ -5,7 +5,7 @@ module k8s.io/code-generator
 go 1.12
 
 require (
-	github.com/gogo/protobuf v1.1.1
+	github.com/gogo/protobuf v1.2.0
 	github.com/spf13/pflag v1.0.1
 	golang.org/x/tools v0.0.0-20190328211700-ab21143f2384 // indirect
 	gonum.org/v1/gonum v0.0.0-20190331200053-3d26580ed485
