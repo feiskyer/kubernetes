@@ -89,7 +89,6 @@ type SecurityGroupsClient interface {
 
 // VirtualMachineScaleSetsClient defines needed functions for azure compute.VirtualMachineScaleSetsClient
 type VirtualMachineScaleSetsClient interface {
-	CreateOrUpdate(ctx context.Context, resourceGroupName string, VMScaleSetName string, parameters compute.VirtualMachineScaleSet) (resp *http.Response, err error)
 	Get(ctx context.Context, resourceGroupName string, VMScaleSetName string) (result compute.VirtualMachineScaleSet, err error)
 	List(ctx context.Context, resourceGroupName string) (result []compute.VirtualMachineScaleSet, err error)
 	UpdateInstances(ctx context.Context, resourceGroupName string, VMScaleSetName string, VMInstanceIDs compute.VirtualMachineScaleSetVMInstanceRequiredIDs) (resp *http.Response, err error)
@@ -835,30 +834,6 @@ func newAzVirtualMachineScaleSetsClient(config *azClientConfig) *azVirtualMachin
 	}
 }
 
-func (az *azVirtualMachineScaleSetsClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, VMScaleSetName string, parameters compute.VirtualMachineScaleSet) (resp *http.Response, err error) {
-	/* Write rate limiting */
-	if !az.rateLimiterWriter.TryAccept() {
-		err = createRateLimitErr(true, "VMSSCreateOrUpdate")
-		return
-	}
-
-	klog.V(10).Infof("azVirtualMachineScaleSetsClient.CreateOrUpdate(%q,%q): start", resourceGroupName, VMScaleSetName)
-	defer func() {
-		klog.V(10).Infof("azVirtualMachineScaleSetsClient.CreateOrUpdate(%q,%q): end", resourceGroupName, VMScaleSetName)
-	}()
-
-	mc := newMetricContext("vmss", "create_or_update", resourceGroupName, az.client.SubscriptionID)
-	future, err := az.client.CreateOrUpdate(ctx, resourceGroupName, VMScaleSetName, parameters)
-	mc.Observe(err)
-	if err != nil {
-		return future.Response(), err
-	}
-
-	err = future.WaitForCompletionRef(ctx, az.client.Client)
-	mc.Observe(err)
-	return future.Response(), err
-}
-
 func (az *azVirtualMachineScaleSetsClient) Get(ctx context.Context, resourceGroupName string, VMScaleSetName string) (result compute.VirtualMachineScaleSet, err error) {
 	if !az.rateLimiterReader.TryAccept() {
 		err = createRateLimitErr(false, "VMSSGet")
@@ -1291,7 +1266,7 @@ func (az *azStorageAccountClient) GetProperties(ctx context.Context, resourceGro
 	}()
 
 	mc := newMetricContext("storage_account", "get_properties", resourceGroupName, az.client.SubscriptionID)
-	result, err = az.client.GetProperties(ctx, resourceGroupName, accountName)
+	result, err = az.client.GetProperties(ctx, resourceGroupName, accountName, "")
 	mc.Observe(err)
 	return
 }
