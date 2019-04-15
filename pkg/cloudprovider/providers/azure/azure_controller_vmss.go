@@ -29,8 +29,9 @@ import (
 
 // AttachDisk attaches a vhd to vm
 // the vhd must exist, can be identified by diskName, diskURI, and lun.
-func (ss *scaleSet) AttachDisk(isManagedDisk bool, diskName, diskURI string, nodeName types.NodeName, lun int32, cachingMode compute.CachingTypes) error {
+func (ss *scaleSet) AttachDisk(isManagedDisk bool, diskName, diskURI string, nodeName types.NodeName, lun int32, cachingTypes compute.CachingTypes) error {
 	vmName := mapNodeNameToVMName(nodeName)
+	cachingMode := CachingTypes(cachingTypes)
 	ssName, instanceID, vm, err := ss.getVmssVM(vmName)
 	if err != nil {
 		return err
@@ -41,30 +42,30 @@ func (ss *scaleSet) AttachDisk(isManagedDisk bool, diskName, diskURI string, nod
 		return err
 	}
 
-	disks := []compute.DataDisk{}
+	disks := []DataDisk{}
 	if vm.StorageProfile != nil && vm.StorageProfile.DataDisks != nil {
 		disks = *vm.StorageProfile.DataDisks
 	}
 	if isManagedDisk {
 		disks = append(disks,
-			compute.DataDisk{
+			DataDisk{
 				Name:         &diskName,
 				Lun:          &lun,
-				Caching:      compute.CachingTypes(cachingMode),
+				Caching:      CachingTypes(cachingMode),
 				CreateOption: "attach",
-				ManagedDisk: &compute.ManagedDiskParameters{
+				ManagedDisk: &ManagedDiskParameters{
 					ID: &diskURI,
 				},
 			})
 	} else {
 		disks = append(disks,
-			compute.DataDisk{
+			DataDisk{
 				Name: &diskName,
-				Vhd: &compute.VirtualHardDisk{
+				Vhd: &VirtualHardDisk{
 					URI: &diskURI,
 				},
 				Lun:          &lun,
-				Caching:      compute.CachingTypes(cachingMode),
+				Caching:      CachingTypes(cachingMode),
 				CreateOption: "attach",
 			})
 	}
@@ -116,7 +117,7 @@ func (ss *scaleSet) DetachDisk(diskName, diskURI string, nodeName types.NodeName
 		return nil, err
 	}
 
-	disks := []compute.DataDisk{}
+	disks := []DataDisk{}
 	if vm.StorageProfile != nil && vm.StorageProfile.DataDisks != nil {
 		disks = *vm.StorageProfile.DataDisks
 	}
@@ -171,5 +172,12 @@ func (ss *scaleSet) GetDataDisks(nodeName types.NodeName) ([]compute.DataDisk, e
 		return nil, nil
 	}
 
-	return *vm.StorageProfile.DataDisks, nil
+	dataDisks := *vm.StorageProfile.DataDisks
+	result := make([]compute.DataDisk, len(dataDisks))
+	for i := range dataDisks {
+		result[i] = compute.DataDisk{
+			// TODO: convert the disk
+		}
+	}
+	return result, nil
 }

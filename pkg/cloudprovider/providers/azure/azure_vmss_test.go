@@ -75,9 +75,24 @@ func setTestVirtualMachineCloud(ss *Cloud, scaleSetName, zone string, faultDomai
 		vmName := fmt.Sprintf("%s_%s", scaleSetName, instanceID)
 
 		// set vmss virtual machine.
-		networkInterfaces := []compute.NetworkInterfaceReference{
+		networkInterfaces := []NetworkInterfaceReference{
 			{
 				ID: &interfaceID,
+			},
+		}
+		ipConfigurations := []VirtualMachineScaleSetIPConfiguration{
+			{
+				Name: to.StringPtr("ipconfig1"),
+				VirtualMachineScaleSetIPConfigurationProperties: &VirtualMachineScaleSetIPConfigurationProperties{},
+			},
+		}
+		networkConfigurations := []VirtualMachineScaleSetNetworkConfiguration{
+			{
+				Name: to.StringPtr("ipconfig1"),
+				ID:   to.StringPtr("fakeNetworkConfiguration"),
+				VirtualMachineScaleSetNetworkConfigurationProperties: &VirtualMachineScaleSetNetworkConfigurationProperties{
+					IPConfigurations: &ipConfigurations,
+				},
 			},
 		}
 		vmssVM := VirtualMachineScaleSetVM{
@@ -85,11 +100,14 @@ func setTestVirtualMachineCloud(ss *Cloud, scaleSetName, zone string, faultDomai
 				OsProfile: &OSProfile{
 					ComputerName: &nodeName,
 				},
-				NetworkProfile: &compute.NetworkProfile{
+				NetworkProfile: &NetworkProfile{
 					NetworkInterfaces: &networkInterfaces,
 				},
 				InstanceView: &VirtualMachineScaleSetVMInstanceView{
 					PlatformFaultDomain: &faultDomain,
+				},
+				NetworkProfileConfiguration: &VirtualMachineScaleSetVMNetworkProfileConfiguration{
+					NetworkInterfaceConfigurations: &networkConfigurations
 				},
 			},
 			ID:         &ID,

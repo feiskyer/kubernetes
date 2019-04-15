@@ -85,6 +85,8 @@ type VirtualMachineScaleSetVMInstanceView struct {
 	PlatformFaultDomain *int32 `json:"platformFaultDomain,omitempty"`
 	// Disks - The disks information.
 	Disks *[]DiskInstanceView `json:"disks,omitempty"`
+	// Statuses - The resource status information.
+	Statuses *[]InstanceViewStatus `json:"statuses,omitempty"`
 	// PlacementGroupID - The placement group in which the VM is running. If the VM is deallocated it will not have a placementGroupId.
 	PlacementGroupID *string `json:"placementGroupId,omitempty"`
 }
