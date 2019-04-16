@@ -80,6 +80,21 @@ func setTestVirtualMachineCloud(ss *Cloud, scaleSetName, zone string, faultDomai
 				ID: &interfaceID,
 			},
 		}
+		ipConfigurations := []compute.VirtualMachineScaleSetIPConfiguration{
+			{
+				Name: to.StringPtr("ipconfig1"),
+				VirtualMachineScaleSetIPConfigurationProperties: &compute.VirtualMachineScaleSetIPConfigurationProperties{},
+			},
+		}
+		networkConfigurations := []compute.VirtualMachineScaleSetNetworkConfiguration{
+			{
+				Name: to.StringPtr("ipconfig1"),
+				ID:   to.StringPtr("fakeNetworkConfiguration"),
+				VirtualMachineScaleSetNetworkConfigurationProperties: &compute.VirtualMachineScaleSetNetworkConfigurationProperties{
+					IPConfigurations: &ipConfigurations,
+				},
+			},
+		}
 		vmssVM := compute.VirtualMachineScaleSetVM{
 			VirtualMachineScaleSetVMProperties: &compute.VirtualMachineScaleSetVMProperties{
 				OsProfile: &compute.OSProfile{
@@ -87,6 +102,9 @@ func setTestVirtualMachineCloud(ss *Cloud, scaleSetName, zone string, faultDomai
 				},
 				NetworkProfile: &compute.NetworkProfile{
 					NetworkInterfaces: &networkInterfaces,
+				},
+				NetworkProfileConfiguration: &compute.VirtualMachineScaleSetVMNetworkProfileConfiguration{
+					NetworkInterfaceConfigurations: &networkConfigurations,
 				},
 				InstanceView: &compute.VirtualMachineScaleSetVMInstanceView{
 					PlatformFaultDomain: &faultDomain,
@@ -305,5 +323,49 @@ func TestGetIPByNodeName(t *testing.T) {
 
 		assert.NoError(t, err, test.description)
 		assert.Equal(t, test.expected, []string{privateIP, publicIP}, test.description)
+	}
+}
+
+///k8s-agentpool2-20421826-vmss/virtualMachines/0/networkInterfaces/k8s-agentpool2-20421826-vmss/ipConfigurations/ipconfig1"
+func TestGetNodeNameByIPConfigurationID(t *testing.T) {
+	ipConfigurationIDTemplate := "/subscriptions/script/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/%s/virtualMachines/%d//networkInterfaces/%s/ipConfigurations/ipconfig1"
+	testCases := []struct {
+		description string
+		scaleSet    string
+		vmList      []string
+		instanceID  string
+		expected    string
+		expectError bool
+	}{
+		{
+			description: "GetIPByNodeName should get node's privateIP and publicIP",
+			scaleSet:    "scaleset1",
+			instanceID:  "0",
+			vmList:      []string{"vmssee6c2000000", "vmssee6c2000001"},
+			expected:    "vmssee6c2000000",
+		},
+		{
+			description: "GetIPByNodeName should return error for non-exist nodes",
+			scaleSet:    "scaleset2",
+			instanceID:  "10",
+			vmList:      []string{"vmssee6c2000000", "vmssee6c2000001"},
+			expected:    "agente6c2000005",
+			expectError: true,
+		},
+	}
+
+	for _, test := range testCases {
+		ss, err := newTestScaleSet(test.scaleSet, "", 0, test.vmList)
+		assert.NoError(t, err, test.description)
+
+		ipConfigurationID := fmt.Sprintf(ipConfigurationIDTemplate, test.scaleSet, 0, test.scaleSet)
+		nodeName, err := ss.getNodeNameByIPConfigurationID(ipConfigurationID)
+		if test.expectError {
+			assert.Error(t, err, test.description)
+			continue
+		}
+
+		assert.NoError(t, err, test.description)
+		assert.Equal(t, test.expected, nodeName, test.description)
 	}
 }
