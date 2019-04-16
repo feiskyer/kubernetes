@@ -107,7 +107,7 @@ func setTestVirtualMachineCloud(ss *Cloud, scaleSetName, zone string, faultDomai
 					PlatformFaultDomain: &faultDomain,
 				},
 				NetworkProfileConfiguration: &VirtualMachineScaleSetVMNetworkProfileConfiguration{
-					NetworkInterfaceConfigurations: &networkConfigurations
+					NetworkInterfaceConfigurations: &networkConfigurations,
 				},
 			},
 			ID:         &ID,
@@ -323,5 +323,54 @@ func TestGetIPByNodeName(t *testing.T) {
 
 		assert.NoError(t, err, test.description)
 		assert.Equal(t, test.expected, []string{privateIP, publicIP}, test.description)
+	}
+}
+
+func TestGetNodeNameByIPConfigurationID(t *testing.T) {
+	ipConfigurationIDTemplate := "/subscriptions/script/resourceGroups/rg/providers/Microsoft.Compute/virtualMachineScaleSets/%s/virtualMachines/%s/networkInterfaces/%s/ipConfigurations/ipconfig1"
+
+	testCases := []struct {
+		description       string
+		scaleSet          string
+		vmList            []string
+		ipConfigurationID string
+		expected          string
+		expectError       bool
+	}{
+		{
+			description:       "getNodeNameByIPConfigurationID should get node's Name when the node is existing",
+			scaleSet:          "scaleset1",
+			ipConfigurationID: fmt.Sprintf(ipConfigurationIDTemplate, "scaleset1", "0", "scaleset1"),
+			vmList:            []string{"vmssee6c2000000", "vmssee6c2000001"},
+			expected:          "vmssee6c2000000",
+		},
+		{
+			description:       "getNodeNameByIPConfigurationID should return error for non-exist nodes",
+			scaleSet:          "scaleset2",
+			ipConfigurationID: fmt.Sprintf(ipConfigurationIDTemplate, "scaleset2", "3", "scaleset1"),
+			vmList:            []string{"vmssee6c2000002", "vmssee6c2000003"},
+			expectError:       true,
+		},
+		{
+			description:       "getNodeNameByIPConfigurationID should return error for wrong ipConfigurationID",
+			scaleSet:          "scaleset3",
+			ipConfigurationID: "invalid-configuration-id",
+			vmList:            []string{"vmssee6c2000004", "vmssee6c2000005"},
+			expectError:       true,
+		},
+	}
+
+	for _, test := range testCases {
+		ss, err := newTestScaleSet(test.scaleSet, "", 0, test.vmList)
+		assert.NoError(t, err, test.description)
+
+		nodeName, err := ss.getNodeNameByIPConfigurationID(test.ipConfigurationID)
+		if test.expectError {
+			assert.Error(t, err, test.description)
+			continue
+		}
+
+		assert.NoError(t, err, test.description)
+		assert.Equal(t, test.expected, nodeName, test.description)
 	}
 }

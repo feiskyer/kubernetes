@@ -31,6 +31,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2018-10-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2017-09-01/network"
+	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2018-02-01/resources"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2018-07-01/storage"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/to"
@@ -498,7 +499,7 @@ func (fVMC *fakeVirtualMachineScaleSetVMsClient) setFakeStore(store map[string]m
 	fVMC.FakeStore = store
 }
 
-func (fVMC *fakeVirtualMachineScaleSetVMsClient) List(ctx context.Context, resourceGroupName string, virtualMachineScaleSetName string, filter string, selectParameter string, expand string) (result []VirtualMachineScaleSetVM, err error) {
+func (fVMC *fakeVirtualMachineScaleSetVMsClient) List(ctx context.Context, resourceGroupName string, virtualMachineScaleSetName string, expand string) (result []VirtualMachineScaleSetVM, err error) {
 	fVMC.mutex.Lock()
 	defer fVMC.mutex.Unlock()
 
@@ -612,10 +613,6 @@ func (fVMSSC *fakeVirtualMachineScaleSetsClient) List(ctx context.Context, resou
 	}
 
 	return result, nil
-}
-
-func (fVMSSC *fakeVirtualMachineScaleSetsClient) UpdateInstances(ctx context.Context, resourceGroupName string, VMScaleSetName string, VMInstanceIDs VirtualMachineScaleSetVMInstanceRequiredIDs) (resp *http.Response, err error) {
-	return nil, nil
 }
 
 type fakeRoutesClient struct {
@@ -929,14 +926,14 @@ func (f *fakeVMSet) GetPowerStatusByNodeName(name string) (string, error) {
 type fakeResourcesClient struct {
 }
 
-func (frc *fakeResourcesClient) Get(ctx context.Context, resourceGroupName, resourceProviderNamespace, parentResourcePath, resourceType, resourceName string) (result resources.GenericResource, err error) (result resources.GenericResource, err error) {
+func (frc *fakeResourcesClient) Get(ctx context.Context, resourceGroupName, resourceProviderNamespace, parentResourcePath, resourceType, resourceName string) (result resources.GenericResource, err error) {
 	return result, err
 }
 
-func (frc *fakeResourcesClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, resourceProviderNamespace string, parentResourcePath string, resourceType string, resourceName string, parameters resources.GenericResource string) (resp *http.Response, err error) {
+func (frc *fakeResourcesClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, resourceProviderNamespace string, parentResourcePath string, resourceType string, resourceName string, parameters resources.GenericResource) (resp *http.Response, err error) {
 	return nil, nil
 }
 
 func (frc *fakeResourcesClient) List(ctx context.Context, filter string, expand string, top *int32) ([]resources.GenericResource, error) {
-    return nil, nil
+	return nil, nil
 }
