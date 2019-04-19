@@ -512,7 +512,7 @@ func (az *Cloud) CreateOrUpdateVMWithRetry(resourceGroup, vmName string, newVM c
 }
 
 // UpdateVmssVMWithRetry invokes az.VirtualMachineScaleSetVMsClient.Update with exponential backoff retry
-func (az *Cloud) UpdateVmssVMWithRetry(resourceGroupName string, VMScaleSetName string, instanceID string, parameters compute.VirtualMachineScaleSetVM) error {
+func (az *Cloud) UpdateVmssVMWithRetry(resourceGroupName string, VMScaleSetName string, instanceID string, parameters VirtualMachineScaleSetVM) error {
 	return wait.ExponentialBackoff(az.requestBackoff(), func() (bool, error) {
 		ctx, cancel := getContextWithCancel()
 		defer cancel()

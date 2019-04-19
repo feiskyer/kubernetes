@@ -480,29 +480,29 @@ func getRandomIPPtr() *string {
 
 type fakeVirtualMachineScaleSetVMsClient struct {
 	mutex     *sync.Mutex
-	FakeStore map[string]map[string]compute.VirtualMachineScaleSetVM
+	FakeStore map[string]map[string]VirtualMachineScaleSetVM
 }
 
 func newFakeVirtualMachineScaleSetVMsClient() *fakeVirtualMachineScaleSetVMsClient {
 	fVMC := &fakeVirtualMachineScaleSetVMsClient{}
-	fVMC.FakeStore = make(map[string]map[string]compute.VirtualMachineScaleSetVM)
+	fVMC.FakeStore = make(map[string]map[string]VirtualMachineScaleSetVM)
 	fVMC.mutex = &sync.Mutex{}
 
 	return fVMC
 }
 
-func (fVMC *fakeVirtualMachineScaleSetVMsClient) setFakeStore(store map[string]map[string]compute.VirtualMachineScaleSetVM) {
+func (fVMC *fakeVirtualMachineScaleSetVMsClient) setFakeStore(store map[string]map[string]VirtualMachineScaleSetVM) {
 	fVMC.mutex.Lock()
 	defer fVMC.mutex.Unlock()
 
 	fVMC.FakeStore = store
 }
 
-func (fVMC *fakeVirtualMachineScaleSetVMsClient) List(ctx context.Context, resourceGroupName string, virtualMachineScaleSetName string, filter string, selectParameter string, expand string) (result []compute.VirtualMachineScaleSetVM, err error) {
+func (fVMC *fakeVirtualMachineScaleSetVMsClient) List(ctx context.Context, resourceGroupName string, virtualMachineScaleSetName string, filter string, selectParameter string, expand string) (result []VirtualMachineScaleSetVM, err error) {
 	fVMC.mutex.Lock()
 	defer fVMC.mutex.Unlock()
 
-	result = []compute.VirtualMachineScaleSetVM{}
+	result = []VirtualMachineScaleSetVM{}
 	if _, ok := fVMC.FakeStore[resourceGroupName]; ok {
 		for _, v := range fVMC.FakeStore[resourceGroupName] {
 			result = append(result, v)
@@ -512,7 +512,7 @@ func (fVMC *fakeVirtualMachineScaleSetVMsClient) List(ctx context.Context, resou
 	return result, nil
 }
 
-func (fVMC *fakeVirtualMachineScaleSetVMsClient) Get(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string) (result compute.VirtualMachineScaleSetVM, err error) {
+func (fVMC *fakeVirtualMachineScaleSetVMsClient) Get(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string) (result VirtualMachineScaleSetVM, err error) {
 	fVMC.mutex.Lock()
 	defer fVMC.mutex.Unlock()
 
@@ -529,7 +529,7 @@ func (fVMC *fakeVirtualMachineScaleSetVMsClient) Get(ctx context.Context, resour
 	}
 }
 
-func (fVMC *fakeVirtualMachineScaleSetVMsClient) GetInstanceView(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string) (result compute.VirtualMachineScaleSetVMInstanceView, err error) {
+func (fVMC *fakeVirtualMachineScaleSetVMsClient) GetInstanceView(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string) (result VirtualMachineScaleSetVMInstanceView, err error) {
 	_, err = fVMC.Get(ctx, resourceGroupName, VMScaleSetName, instanceID)
 	if err != nil {
 		return result, err
@@ -538,7 +538,7 @@ func (fVMC *fakeVirtualMachineScaleSetVMsClient) GetInstanceView(ctx context.Con
 	return result, nil
 }
 
-func (fVMC *fakeVirtualMachineScaleSetVMsClient) Update(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string, parameters compute.VirtualMachineScaleSetVM) (resp *http.Response, err error) {
+func (fVMC *fakeVirtualMachineScaleSetVMsClient) Update(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string, parameters VirtualMachineScaleSetVM) (resp *http.Response, err error) {
 	fVMC.mutex.Lock()
 	defer fVMC.mutex.Unlock()
 
@@ -614,7 +614,7 @@ func (fVMSSC *fakeVirtualMachineScaleSetsClient) List(ctx context.Context, resou
 	return result, nil
 }
 
-func (fVMSSC *fakeVirtualMachineScaleSetsClient) UpdateInstances(ctx context.Context, resourceGroupName string, VMScaleSetName string, VMInstanceIDs compute.VirtualMachineScaleSetVMInstanceRequiredIDs) (resp *http.Response, err error) {
+func (fVMSSC *fakeVirtualMachineScaleSetsClient) UpdateInstances(ctx context.Context, resourceGroupName string, VMScaleSetName string, VMInstanceIDs VirtualMachineScaleSetVMInstanceRequiredIDs) (resp *http.Response, err error) {
 	return nil, nil
 }
 

@@ -93,7 +93,7 @@ func newScaleSet(az *Cloud) (VMSet, error) {
 
 // getVmssVM gets virtualMachineScaleSetVM by nodeName from cache.
 // It returns cloudprovider.InstanceNotFound if node does not belong to any scale sets.
-func (ss *scaleSet) getVmssVM(nodeName string) (ssName, instanceID string, vm compute.VirtualMachineScaleSetVM, err error) {
+func (ss *scaleSet) getVmssVM(nodeName string) (ssName, instanceID string, vm VirtualMachineScaleSetVM, err error) {
 	instanceID, err = getScaleSetVMInstanceID(nodeName)
 	if err != nil {
 		return ssName, instanceID, vm, err
@@ -125,7 +125,7 @@ func (ss *scaleSet) getVmssVM(nodeName string) (ssName, instanceID string, vm co
 		return ssName, instanceID, vm, cloudprovider.InstanceNotFound
 	}
 
-	return ssName, instanceID, *(cachedVM.(*compute.VirtualMachineScaleSetVM)), nil
+	return ssName, instanceID, *(cachedVM.(*VirtualMachineScaleSetVM)), nil
 }
 
 // GetPowerStatusByNodeName returns the power state of the specified node.
@@ -150,7 +150,7 @@ func (ss *scaleSet) GetPowerStatusByNodeName(name string) (powerState string, er
 
 // getCachedVirtualMachineByInstanceID gets scaleSetVMInfo from cache.
 // The node must belong to one of scale sets.
-func (ss *scaleSet) getVmssVMByInstanceID(resourceGroup, scaleSetName, instanceID string) (vm compute.VirtualMachineScaleSetVM, err error) {
+func (ss *scaleSet) getVmssVMByInstanceID(resourceGroup, scaleSetName, instanceID string) (vm VirtualMachineScaleSetVM, err error) {
 	vmName := ss.makeVmssVMName(scaleSetName, instanceID)
 	key := buildVmssCacheKey(resourceGroup, vmName)
 	cachedVM, err := ss.vmssVMCache.Get(key)
@@ -163,7 +163,7 @@ func (ss *scaleSet) getVmssVMByInstanceID(resourceGroup, scaleSetName, instanceI
 		return vm, cloudprovider.InstanceNotFound
 	}
 
-	return *(cachedVM.(*compute.VirtualMachineScaleSetVM)), nil
+	return *(cachedVM.(*VirtualMachineScaleSetVM)), nil
 }
 
 // GetInstanceIDByNodeName gets the cloud provider ID by node name.
@@ -337,7 +337,7 @@ func (ss *scaleSet) GetIPByNodeName(nodeName string) (string, string, error) {
 }
 
 // This returns the full identifier of the primary NIC for the given VM.
-func (ss *scaleSet) getPrimaryInterfaceID(machine compute.VirtualMachineScaleSetVM) (string, error) {
+func (ss *scaleSet) getPrimaryInterfaceID(machine VirtualMachineScaleSetVM) (string, error) {
 	if len(*machine.NetworkProfile.NetworkInterfaces) == 1 {
 		return *(*machine.NetworkProfile.NetworkInterfaces)[0].ID, nil
 	}
@@ -409,12 +409,12 @@ func (ss *scaleSet) listScaleSets(resourceGroup string) ([]string, error) {
 }
 
 // listScaleSetVMs lists VMs belonging to the specified scale set.
-func (ss *scaleSet) listScaleSetVMs(scaleSetName, resourceGroup string) ([]compute.VirtualMachineScaleSetVM, error) {
+func (ss *scaleSet) listScaleSetVMs(scaleSetName, resourceGroup string) ([]VirtualMachineScaleSetVM, error) {
 	var err error
 	ctx, cancel := getContextWithCancel()
 	defer cancel()
 
-	allVMs, err := ss.VirtualMachineScaleSetVMsClient.List(ctx, resourceGroup, scaleSetName, "", "", string(compute.InstanceView))
+	allVMs, err := ss.VirtualMachineScaleSetVMsClient.List(ctx, resourceGroup, scaleSetName, string(compute.InstanceView))
 	if err != nil {
 		klog.Errorf("VirtualMachineScaleSetVMsClient.List failed: %v", err)
 		return nil, err
@@ -676,7 +676,7 @@ func (ss *scaleSet) createOrUpdateVMSSWithRetry(service *v1.Service, virtualMach
 }
 
 // updateVMSSInstances invokes ss.VirtualMachineScaleSetsClient.UpdateInstances with exponential backoff retry.
-func (ss *scaleSet) updateVMSSInstances(service *v1.Service, scaleSetName string, vmInstanceIDs compute.VirtualMachineScaleSetVMInstanceRequiredIDs) error {
+func (ss *scaleSet) updateVMSSInstances(service *v1.Service, scaleSetName string, vmInstanceIDs VirtualMachineScaleSetVMInstanceRequiredIDs) error {
 	if ss.Config.shouldOmitCloudProviderBackoff() {
 		ctx, cancel := getContextWithCancel()
 		defer cancel()

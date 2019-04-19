@@ -63,8 +63,8 @@ func setTestVirtualMachineCloud(ss *Cloud, scaleSetName, zone string, faultDomai
 	testPIPs := map[string]map[string]network.PublicIPAddress{
 		"rg": make(map[string]network.PublicIPAddress),
 	}
-	ssVMs := map[string]map[string]compute.VirtualMachineScaleSetVM{
-		"rg": make(map[string]compute.VirtualMachineScaleSetVM),
+	ssVMs := map[string]map[string]VirtualMachineScaleSetVM{
+		"rg": make(map[string]VirtualMachineScaleSetVM),
 	}
 	for i := range vmList {
 		nodeName := vmList[i]
@@ -80,15 +80,15 @@ func setTestVirtualMachineCloud(ss *Cloud, scaleSetName, zone string, faultDomai
 				ID: &interfaceID,
 			},
 		}
-		vmssVM := compute.VirtualMachineScaleSetVM{
-			VirtualMachineScaleSetVMProperties: &compute.VirtualMachineScaleSetVMProperties{
-				OsProfile: &compute.OSProfile{
+		vmssVM := VirtualMachineScaleSetVM{
+			VirtualMachineScaleSetVMProperties: &VirtualMachineScaleSetVMProperties{
+				OsProfile: &OSProfile{
 					ComputerName: &nodeName,
 				},
 				NetworkProfile: &compute.NetworkProfile{
 					NetworkInterfaces: &networkInterfaces,
 				},
-				InstanceView: &compute.VirtualMachineScaleSetVMInstanceView{
+				InstanceView: &VirtualMachineScaleSetVMInstanceView{
 					PlatformFaultDomain: &faultDomain,
 				},
 			},

@@ -18,7 +18,9 @@ package azure
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/Azure/go-autorest/autorest/to"
 	"net/http"
 	"time"
 
@@ -31,6 +33,11 @@ import (
 	"k8s.io/klog"
 
 	"k8s.io/client-go/util/flowcontrol"
+)
+
+const (
+	// vmssAPIVersion is the API version for VMSS PUT.
+	vmssAPIVersion = "2019-03-01"
 )
 
 // Helpers for rate limiting error/error channel creation
@@ -98,9 +105,9 @@ type VirtualMachineScaleSetsClient interface {
 
 // VirtualMachineScaleSetVMsClient defines needed functions for azure compute.VirtualMachineScaleSetVMsClient
 type VirtualMachineScaleSetVMsClient interface {
-	Get(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string) (result compute.VirtualMachineScaleSetVM, err error)
-	GetInstanceView(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string) (result compute.VirtualMachineScaleSetVMInstanceView, err error)
-	List(ctx context.Context, resourceGroupName string, virtualMachineScaleSetName string, filter string, selectParameter string, expand string) (result []compute.VirtualMachineScaleSetVM, err error)
+	Get(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string) (result VirtualMachineScaleSetVM, err error)
+	GetInstanceView(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string) (result VirtualMachineScaleSetVMInstanceView, err error)
+	List(ctx context.Context, resourceGroupName string, virtualMachineScaleSetName string, expand string) (result []VirtualMachineScaleSetVM, err error)
 	Update(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string, parameters compute.VirtualMachineScaleSetVM) (resp *http.Response, err error)
 }
 
@@ -941,6 +948,7 @@ func (az *azVirtualMachineScaleSetsClient) UpdateInstances(ctx context.Context, 
 // azVirtualMachineScaleSetVMsClient implements VirtualMachineScaleSetVMsClient.
 type azVirtualMachineScaleSetVMsClient struct {
 	client            compute.VirtualMachineScaleSetVMsClient
+	resourceClient    ResourcesClient
 	rateLimiterReader flowcontrol.RateLimiter
 	rateLimiterWriter flowcontrol.RateLimiter
 }
@@ -958,12 +966,14 @@ func newAzVirtualMachineScaleSetVMsClient(config *azClientConfig) *azVirtualMach
 
 	return &azVirtualMachineScaleSetVMsClient{
 		client:            virtualMachineScaleSetVMsClient,
+		resourceClient:    newAzResourcesClient(config, vmssAPIVersion),
 		rateLimiterReader: config.rateLimiterReader,
 		rateLimiterWriter: config.rateLimiterWriter,
 	}
+
 }
 
-func (az *azVirtualMachineScaleSetVMsClient) Get(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string) (result compute.VirtualMachineScaleSetVM, err error) {
+func (az *azVirtualMachineScaleSetVMsClient) Get(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string) (result VirtualMachineScaleSetVM, err error) {
 	if !az.rateLimiterReader.TryAccept() {
 		err = createRateLimitErr(false, "VMSSGet")
 		return
@@ -975,12 +985,22 @@ func (az *azVirtualMachineScaleSetVMsClient) Get(ctx context.Context, resourceGr
 	}()
 
 	mc := newMetricContext("vmssvm", "get", resourceGroupName, az.client.SubscriptionID)
-	result, err = az.client.Get(ctx, resourceGroupName, VMScaleSetName, instanceID)
+	resp, err := az.resourceClient.Get(ctx, resourceGroupName, "Microsoft.Compute", "virtualMachineScaleSets", VMScaleSetName, fmt.Sprintf("virtualMachines/%s", instanceID))
+	if err != nil {
+		return result, err
+	}
+
+	data, err := resp.MarshalJSON()
+	if err != nil {
+		return result, err
+	}
+
+	err = json.Unmarshal(data, &result)
 	mc.Observe(err)
 	return
 }
 
-func (az *azVirtualMachineScaleSetVMsClient) GetInstanceView(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string) (result compute.VirtualMachineScaleSetVMInstanceView, err error) {
+func (az *azVirtualMachineScaleSetVMsClient) GetInstanceView(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string) (result VirtualMachineScaleSetVMInstanceView, err error) {
 	if !az.rateLimiterReader.TryAccept() {
 		err = createRateLimitErr(false, "VMSSGetInstanceView")
 		return
@@ -992,12 +1012,22 @@ func (az *azVirtualMachineScaleSetVMsClient) GetInstanceView(ctx context.Context
 	}()
 
 	mc := newMetricContext("vmssvm", "get_instance_view", resourceGroupName, az.client.SubscriptionID)
-	result, err = az.client.GetInstanceView(ctx, resourceGroupName, VMScaleSetName, instanceID)
+	resp, err := az.resourceClient.Get(ctx, resourceGroupName, "Microsoft.Compute", "virtualMachineScaleSets", VMScaleSetName, fmt.Sprintf("virtualMachines/%s/instanceView", instanceID))
+	if err != nil {
+		return result, err
+	}
+
+	data, err := resp.MarshalJSON()
+	if err != nil {
+		return result, err
+	}
+
+	err = json.Unmarshal(data, &result)
 	mc.Observe(err)
 	return
 }
 
-func (az *azVirtualMachineScaleSetVMsClient) List(ctx context.Context, resourceGroupName string, virtualMachineScaleSetName string, filter string, selectParameter string, expand string) (result []compute.VirtualMachineScaleSetVM, err error) {
+func (az *azVirtualMachineScaleSetVMsClient) List(ctx context.Context, resourceGroupName string, virtualMachineScaleSetName string, expand string) (result []VirtualMachineScaleSetVM, err error) {
 	if !az.rateLimiterReader.TryAccept() {
 		err = createRateLimitErr(false, "VMSSList")
 		return
@@ -1007,27 +1037,24 @@ func (az *azVirtualMachineScaleSetVMsClient) List(ctx context.Context, resourceG
 	defer func() {
 		klog.V(10).Infof("azVirtualMachineScaleSetVMsClient.List(%q,%q,%q): end", resourceGroupName, virtualMachineScaleSetName, filter)
 	}()
-
+	filter := fmt.Sprintf("resourceType eq 'Microsoft.Compute/virtualMachineScaleSets/virtualMachines' and resourceGroup eq '%s' and name eq '%s'", resourceGroupName, virtualMachineScaleSetName)
 	mc := newMetricContext("vmssvm", "list", resourceGroupName, az.client.SubscriptionID)
-	iterator, err := az.client.ListComplete(ctx, resourceGroupName, virtualMachineScaleSetName, filter, selectParameter, expand)
-	mc.Observe(err)
+	resp, err := az.resourceClient.List(ctx, filter, expand, nil)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 
-	result = make([]compute.VirtualMachineScaleSetVM, 0)
-	for ; iterator.NotDone(); err = iterator.Next() {
-		if err != nil {
-			return nil, err
-		}
-
-		result = append(result, iterator.Value())
+	data, err := resp.MarshalJSON()
+	if err != nil {
+		return result, err
 	}
 
+	err = json.Unmarshal(data, &result)
+	mc.Observe(err)
 	return result, nil
 }
 
-func (az *azVirtualMachineScaleSetVMsClient) Update(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string, parameters compute.VirtualMachineScaleSetVM) (resp *http.Response, err error) {
+func (az *azVirtualMachineScaleSetVMsClient) Update(ctx context.Context, resourceGroupName string, VMScaleSetName string, instanceID string, parameters VirtualMachineScaleSetVM) (resp *http.Response, err error) {
 	if !az.rateLimiterWriter.TryAccept() {
 		err = createRateLimitErr(true, "VMSSUpdate")
 		return
@@ -1038,16 +1065,24 @@ func (az *azVirtualMachineScaleSetVMsClient) Update(ctx context.Context, resourc
 		klog.V(10).Infof("azVirtualMachineScaleSetVMsClient.Update(%q,%q,%q): end", resourceGroupName, VMScaleSetName, instanceID)
 	}()
 
-	mc := newMetricContext("vmssvm", "update", resourceGroupName, az.client.SubscriptionID)
-	future, err := az.client.Update(ctx, resourceGroupName, VMScaleSetName, instanceID, parameters)
-	mc.Observe(err)
-	if err != nil {
-		return future.Response(), err
+	genericParameters := resources.GenericResource{
+		Properties: parameters.VirtualMachineScaleSetVMProperties,
+		ID:         parameters.ID,
+		Name:       parameters.Name,
+		Type:       parameters.Type,
+		Tags:       parameters.Tags,
 	}
-
-	err = future.WaitForCompletionRef(ctx, az.client.Client)
+	if parameters.Sku != nil {
+		genericParameters.Sku = &resources.Sku{
+			Name:     parameters.Sku.Name,
+			Tier:     parameters.Sku.Tier,
+			Capacity: to.Int32Ptr(int32(to.Int64(parameters.Sku.Capacity))),
+		}
+	}
+	mc := newMetricContext("vmssvm", "update", resourceGroupName, az.client.SubscriptionID)
+	resp, err = az.resourceClient.CreateOrUpdate(ctx, resourceGroupName, "Microsoft.Compute", "virtualMachineScaleSets", VMScaleSetName, fmt.Sprintf("virtualMachines/%s", instanceID), genericParameters, vmssAPIVersion)
 	mc.Observe(err)
-	return future.Response(), err
+	return resp, err
 }
 
 // azRoutesClient implements RoutesClient.
@@ -1513,7 +1548,7 @@ func (az *azResourcesClient) Get(ctx context.Context, resourceGroupName, resourc
 	return
 }
 
-func (az *azResourcesClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, resourceProviderNamespace string, parentResourcePath string, resourceType string, resourceName string, parameters resources.GenericResource string) (resp *http.Response, err error) {
+func (az *azResourcesClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, resourceProviderNamespace string, parentResourcePath string, resourceType string, resourceName string, parameters resources.GenericResource) (resp *http.Response, err error) {
 	/* Write rate limiting */
 	if !az.rateLimiterWriter.TryAccept() {
 		err = createRateLimitErr(true, "ResourceCreateOrUpdate")
