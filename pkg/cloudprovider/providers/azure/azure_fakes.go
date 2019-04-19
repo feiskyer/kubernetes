@@ -921,3 +921,18 @@ func (f *fakeVMSet) GetDataDisks(nodeName types.NodeName) ([]compute.DataDisk, e
 func (f *fakeVMSet) GetPowerStatusByNodeName(name string) (string, error) {
 	return "", fmt.Errorf("unimplemented")
 }
+
+type fakeResourcesClient struct {
+}
+
+func (frc *fakeResourcesClient) Get(ctx context.Context, resourceGroupName, resourceProviderNamespace, parentResourcePath, resourceType, resourceName string) (result resources.GenericResource, err error) (result resources.GenericResource, err error) {
+	return result, err
+}
+
+func (frc *fakeResourcesClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, resourceProviderNamespace string, parentResourcePath string, resourceType string, resourceName string, parameters resources.GenericResource string) (resp *http.Response, err error) {
+	return nil, nil
+}
+
+func (frc *fakeResourcesClient) List(ctx context.Context, filter string, expand string, top *int32) ([]resources.GenericResource, error) {
+    return nil, nil
+}

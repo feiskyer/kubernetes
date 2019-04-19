@@ -24,6 +24,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2018-10-01/compute"
 	"github.com/Azure/azure-sdk-for-go/services/network/mgmt/2017-09-01/network"
+	"github.com/Azure/azure-sdk-for-go/services/resources/mgmt/2018-02-01/resources"
 	"github.com/Azure/azure-sdk-for-go/services/storage/mgmt/2018-07-01/storage"
 	"github.com/Azure/go-autorest/autorest"
 	"github.com/Azure/go-autorest/autorest/adal"
@@ -134,6 +135,13 @@ type DisksClient interface {
 // VirtualMachineSizesClient defines needed functions for azure compute.VirtualMachineSizesClient
 type VirtualMachineSizesClient interface {
 	List(ctx context.Context, location string) (result compute.VirtualMachineSizeListResult, err error)
+}
+
+// ResourcesClient defines needed functions for azure resources.GenericResource.
+type ResourcesClient interface {
+	Get(ctx context.Context, resourceGroupName, resourceProviderNamespace, parentResourcePath, resourceType, resourceName, apiVersion string) (result resources.GenericResource, err error)
+	CreateOrUpdate(ctx context.Context, resourceGroupName string, resourceProviderNamespace string, parentResourcePath string, resourceType string, resourceName string, parameters resources.GenericResource, apiVersion string) (resp *http.Response, err error)
+	List(ctx context.Context, filter string, expand string, top *int32) ([]resources.GenericResource, error)
 }
 
 // azClientConfig contains all essential information to create an Azure client.
@@ -1437,4 +1445,123 @@ func (az *azVirtualMachineSizesClient) List(ctx context.Context, location string
 	result, err = az.client.List(ctx, location)
 	mc.Observe(err)
 	return
+}
+
+type azResourcesClient struct {
+	client            resources.Client
+	rateLimiterReader flowcontrol.RateLimiter
+	rateLimiterWriter flowcontrol.RateLimiter
+}
+
+// WithAPIVersion returns a prepare decorator that changes the request's query for api-version
+// This can be set up as a client's RequestInspector.
+func WithAPIVersion(apiVersion string) autorest.PrepareDecorator {
+	return func(p autorest.Preparer) autorest.Preparer {
+		return autorest.PreparerFunc(func(r *http.Request) (*http.Request, error) {
+			r, err := p.Prepare(r)
+			if err == nil {
+				v := r.URL.Query()
+				d, err := url.QueryUnescape(apiVersion)
+				if err != nil {
+					return r, err
+				}
+				v.Set("api-version", d)
+				r.URL.RawQuery = v.Encode()
+			}
+			return r, err
+		})
+	}
+}
+
+func newAzResourcesClient(config *azClientConfig, apiVersion string) *azResourcesClient {
+	resourcesClient := resources.NewClient(config.subscriptionID)
+	resourcesClient.BaseURI = config.resourceManagerEndpoint
+	resourcesClient.Authorizer = autorest.NewBearerAuthorizer(config.servicePrincipalToken)
+	resourcesClient.PollingDelay = 5 * time.Second
+	if config.ShouldOmitCloudProviderBackoff {
+		resourcesClient.RetryAttempts = config.CloudProviderBackoffRetries
+		resourcesClient.RetryDuration = time.Duration(config.CloudProviderBackoffDuration) * time.Second
+	}
+	configureUserAgent(&resourcesClient.Client)
+
+	// Setup requests version via RequestInspector.
+	if apiVersion != "" {
+		resourcesClient.RequestInspector = WithAPIVersion(apiVersion)
+	}
+
+	return &azResourcesClient{
+		rateLimiterReader: config.rateLimiterReader,
+		rateLimiterWriter: config.rateLimiterWriter,
+		client:            resourcesClient,
+	}
+}
+
+func (az *azResourcesClient) Get(ctx context.Context, resourceGroupName, resourceProviderNamespace, parentResourcePath, resourceType, resourceName string) (result resources.GenericResource, err error) {
+	if !az.rateLimiterReader.TryAccept() {
+		err = createRateLimitErr(false, "GetResource")
+		return
+	}
+
+	klog.V(10).Infof("azResourcesClient.Get(%q,%q,%q,%q): start", resourceGroupName, resourceProviderNamespace, parentResourcePath, resourceName)
+	defer func() {
+		klog.V(10).Infof("azResourcesClient.Get(%q,%q,%q,%q): end", resourceGroupName, resourceProviderNamespace, parentResourcePath, resourceName)
+	}()
+
+	mc := newMetricContext("resources", "get", resourceGroupName, az.client.SubscriptionID)
+	result, err = az.Get(ctx, resourceGroupName, resourceProviderNamespace, parentResourcePath, resourceType, resourceName)
+	mc.Observe(err)
+	return
+}
+
+func (az *azResourcesClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, resourceProviderNamespace string, parentResourcePath string, resourceType string, resourceName string, parameters resources.GenericResource string) (resp *http.Response, err error) {
+	/* Write rate limiting */
+	if !az.rateLimiterWriter.TryAccept() {
+		err = createRateLimitErr(true, "ResourceCreateOrUpdate")
+		return
+	}
+
+	klog.V(10).Infof("azResourcesClient.CreateOrUpdate(%q,%q,%q,%q): start", resourceGroupName, resourceProviderNamespace, parentResourcePath, resourceName)
+	defer func() {
+		klog.V(10).Infof("azResourcesClient.CreateOrUpdate(%q,%q,%q,%q): end", resourceGroupName, resourceProviderNamespace, parentResourcePath, resourceName)
+	}()
+
+	mc := newMetricContext("resources", "create_or_update", resourceGroupName, az.client.SubscriptionID)
+	future, err := az.client.CreateOrUpdate(ctx, resourceGroupName, resourceProviderNamespace, parentResourcePath, resourceType, resourceName, parameters)
+	if err != nil {
+		mc.Observe(err)
+		return future.Response(), err
+	}
+
+	err = future.WaitForCompletionRef(ctx, az.client.Client)
+	mc.Observe(err)
+	return future.Response(), err
+}
+
+func (az *azResourcesClient) List(ctx context.Context, filter string, expand string, top *int32) ([]resources.GenericResource, error) {
+	if !az.rateLimiterReader.TryAccept() {
+		return nil, createRateLimitErr(false, "ListResources")
+	}
+
+	klog.V(10).Infof("azResourcesClient.List(%q,%q): start", filter, expand)
+	defer func() {
+		klog.V(10).Infof("azResourcesClient.List(%q,%q): end", filter, expand)
+	}()
+
+	mc := newMetricContext("resources", "list", filter, az.client.SubscriptionID)
+	iterator, err := az.client.ListComplete(ctx, filter, expand, top)
+	mc.Observe(err)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]resources.GenericResource, 0)
+	for ; iterator.NotDone(); err = iterator.Next() {
+		if err != nil {
+			return nil, err
+		}
+
+		result = append(result, iterator.Value())
+	}
+
+	return result, nil
 }
