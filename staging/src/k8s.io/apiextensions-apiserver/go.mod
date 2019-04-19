@@ -15,12 +15,12 @@ require (
 	github.com/go-openapi/spec v0.17.2
 	github.com/go-openapi/strfmt v0.17.0
 	github.com/go-openapi/validate v0.18.0
-	github.com/gogo/protobuf v0.0.0-20171007142547-342cbe0a0415
+	github.com/gogo/protobuf v1.2.0
 	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf
 	github.com/googleapis/gnostic v0.0.0-20170729233727-0c5108395e2d
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/pborman/uuid v1.2.0
-	github.com/prometheus/client_golang v0.9.2
+	github.com/prometheus/client_golang v0.9.3-0.20190127221311-3c4408c8b829
 	github.com/spf13/cobra v0.0.0-20180319062004-c439c4fa0937
 	github.com/spf13/pflag v1.0.1
 	github.com/stretchr/testify v1.2.2
@@ -38,6 +38,8 @@ require (
 )
 
 replace (
+	cloud.google.com/go => cloud.google.com/go v0.26.0
+	github.com/gorilla/mux => github.com/gorilla/mux v1.7.0
 	golang.org/x/sys => golang.org/x/sys v0.0.0-20190209173611-3b5209105503
 	golang.org/x/tools => golang.org/x/tools v0.0.0-20190313210603-aa82965741a9
 	k8s.io/api => ../api

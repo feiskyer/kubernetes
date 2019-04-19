@@ -8,7 +8,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/emicklei/go-restful v0.0.0-20170410110728-ff4f55a20633 // indirect
 	github.com/evanphx/json-patch v0.0.0-20190203023257-5858425f7550
-	github.com/ghodss/yaml v0.0.0-20180820084758-c7ce16629ff4 // indirect
 	github.com/go-openapi/jsonpointer v0.19.0 // indirect
 	github.com/go-openapi/jsonreference v0.19.0 // indirect
 	github.com/go-openapi/spec v0.17.2 // indirect
@@ -27,6 +26,9 @@ require (
 )
 
 replace (
+	cloud.google.com/go => cloud.google.com/go v0.26.0
+	github.com/gorilla/mux => github.com/gorilla/mux v1.7.0
+	golang.org/x/exp => golang.org/x/exp v0.0.0-20190312203227-4b39c73a6495
 	golang.org/x/sys => golang.org/x/sys v0.0.0-20190209173611-3b5209105503
 	golang.org/x/tools => golang.org/x/tools v0.0.0-20190313210603-aa82965741a9
 	k8s.io/api => ../api

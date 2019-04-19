@@ -13,6 +13,8 @@ require (
 )
 
 replace (
+	cloud.google.com/go => cloud.google.com/go v0.26.0
+	github.com/gorilla/mux => github.com/gorilla/mux v1.7.0
 	golang.org/x/sys => golang.org/x/sys v0.0.0-20190209173611-3b5209105503
 	golang.org/x/tools => golang.org/x/tools v0.0.0-20190313210603-aa82965741a9
 	k8s.io/api => ../api
