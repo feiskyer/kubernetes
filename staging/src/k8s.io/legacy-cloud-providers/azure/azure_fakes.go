@@ -642,7 +642,7 @@ func newFakeRoutesClient() *fakeRoutesClient {
 	return fRC
 }
 
-func (fRC *fakeRoutesClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, routeTableName string, routeName string, routeParameters network.Route) (resp *http.Response, err error) {
+func (fRC *fakeRoutesClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, routeTableName string, routeName string, routeParameters network.Route, etag string) (resp *http.Response, err error) {
 	fRC.mutex.Lock()
 	defer fRC.mutex.Unlock()
 
@@ -683,7 +683,7 @@ func newFakeRouteTablesClient() *fakeRouteTablesClient {
 	return fRTC
 }
 
-func (fRTC *fakeRouteTablesClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, routeTableName string, parameters network.RouteTable) (resp *http.Response, err error) {
+func (fRTC *fakeRouteTablesClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, routeTableName string, parameters network.RouteTable, etag string) (resp *http.Response, err error) {
 	fRTC.mutex.Lock()
 	defer fRTC.mutex.Unlock()
 

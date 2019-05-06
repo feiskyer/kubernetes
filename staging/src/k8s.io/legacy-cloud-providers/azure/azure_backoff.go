@@ -441,7 +441,10 @@ func (az *Cloud) CreateOrUpdateRouteTable(routeTable network.RouteTable) error {
 		ctx, cancel := getContextWithCancel()
 		defer cancel()
 
-		resp, err := az.RouteTablesClient.CreateOrUpdate(ctx, az.RouteTableResourceGroup, az.RouteTableName, routeTable)
+		resp, err := az.RouteTablesClient.CreateOrUpdate(ctx, az.RouteTableResourceGroup, az.RouteTableName, routeTable, to.String(routeTable.Etag))
+		if resp != nil && resp.StatusCode == http.StatusPreconditionFailed {
+			az.rtCache.Delete(*routeTable.Name)
+		}
 		return az.processHTTPResponse(nil, "", resp, err)
 	}
 
@@ -454,8 +457,19 @@ func (az *Cloud) createOrUpdateRouteTableWithRetry(routeTable network.RouteTable
 		ctx, cancel := getContextWithCancel()
 		defer cancel()
 
-		resp, err := az.RouteTablesClient.CreateOrUpdate(ctx, az.RouteTableResourceGroup, az.RouteTableName, routeTable)
-		return az.processHTTPRetryResponse(nil, "", resp, err)
+		resp, err := az.RouteTablesClient.CreateOrUpdate(ctx, az.RouteTableResourceGroup, az.RouteTableName, routeTable, to.String(routeTable.Etag))
+		done, retryError := az.processHTTPRetryResponse(nil, "", resp, err)
+		if done && err == nil {
+			az.rtCache.Delete(*routeTable.Name)
+			return done, nil
+		}
+
+		// Invalidate the cache and abort backoff because ETAG precondition mismatch.
+		if resp != nil && resp.StatusCode == http.StatusPreconditionFailed {
+			az.rtCache.Delete(*routeTable.Name)
+			return true, err
+		}
+		return done, retryError
 	})
 }
 
@@ -465,8 +479,11 @@ func (az *Cloud) CreateOrUpdateRoute(route network.Route) error {
 		ctx, cancel := getContextWithCancel()
 		defer cancel()
 
-		resp, err := az.RoutesClient.CreateOrUpdate(ctx, az.RouteTableResourceGroup, az.RouteTableName, *route.Name, route)
+		resp, err := az.RoutesClient.CreateOrUpdate(ctx, az.RouteTableResourceGroup, az.RouteTableName, *route.Name, route, to.String(route.Etag))
 		klog.V(10).Infof("RoutesClient.CreateOrUpdate(%s): end", *route.Name)
+		if resp != nil && resp.StatusCode == http.StatusPreconditionFailed {
+			az.rtCache.Delete(az.RouteTableName)
+		}
 		return az.processHTTPResponse(nil, "", resp, err)
 	}
 
@@ -479,9 +496,20 @@ func (az *Cloud) createOrUpdateRouteWithRetry(route network.Route) error {
 		ctx, cancel := getContextWithCancel()
 		defer cancel()
 
-		resp, err := az.RoutesClient.CreateOrUpdate(ctx, az.RouteTableResourceGroup, az.RouteTableName, *route.Name, route)
+		resp, err := az.RoutesClient.CreateOrUpdate(ctx, az.RouteTableResourceGroup, az.RouteTableName, *route.Name, route, to.String(route.Etag))
 		klog.V(10).Infof("RoutesClient.CreateOrUpdate(%s): end", *route.Name)
-		return az.processHTTPRetryResponse(nil, "", resp, err)
+		done, retryError := az.processHTTPRetryResponse(nil, "", resp, err)
+		if done && err == nil {
+			az.rtCache.Delete(az.RouteTableName)
+			return done, nil
+		}
+
+		// Invalidate the cache and abort backoff because ETAG precondition mismatch.
+		if resp != nil && resp.StatusCode == http.StatusPreconditionFailed {
+			az.rtCache.Delete(az.RouteTableName)
+			return true, err
+		}
+		return done, retryError
 	})
 }
 
