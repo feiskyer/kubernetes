@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/services/compute/mgmt/2019-07-01/compute"
@@ -65,7 +66,9 @@ type controllerCommon struct {
 	location              string
 	storageEndpointSuffix string
 	resourceGroup         string
-	cloud                 *Cloud
+	// store disk URI when disk is in attaching or detaching process
+	diskAttachDetachMap sync.Map
+	cloud               *Cloud
 }
 
 // getNodeVMSet gets the VMSet interface based on config.VMType and the real virtual machine type.
@@ -145,6 +148,8 @@ func (c *controllerCommon) AttachDisk(isManagedDisk bool, diskName, diskURI stri
 	}
 
 	klog.V(2).Infof("Trying to attach volume %q lun %d to node %q.", diskURI, lun, nodeName)
+	c.diskAttachDetachMap.Store(strings.ToLower(diskURI), "attaching")
+	defer c.diskAttachDetachMap.Delete(strings.ToLower(diskURI))
 	return lun, vmset.AttachDisk(isManagedDisk, diskName, diskURI, nodeName, lun, cachingMode)
 }
 
@@ -171,14 +176,18 @@ func (c *controllerCommon) DetachDisk(diskName, diskURI string, nodeName types.N
 
 	// make the lock here as small as possible
 	diskOpMutex.LockKey(instanceid)
+	c.diskAttachDetachMap.Store(strings.ToLower(diskURI), "detaching")
 	resp, err := vmset.DetachDisk(diskName, diskURI, nodeName)
+	c.diskAttachDetachMap.Delete(strings.ToLower(diskURI))
 	diskOpMutex.UnlockKey(instanceid)
 
 	if c.cloud.CloudProviderBackoff && shouldRetryHTTPRequest(resp, err) {
 		klog.V(2).Infof("azureDisk - update backing off: detach disk(%s, %s), err: %v", diskName, diskURI, err)
 		retryErr := kwait.ExponentialBackoff(c.cloud.RequestBackoff(), func() (bool, error) {
 			diskOpMutex.LockKey(instanceid)
+			c.diskAttachDetachMap.Store(strings.ToLower(diskURI), "detaching")
 			resp, err := vmset.DetachDisk(diskName, diskURI, nodeName)
+			c.diskAttachDetachMap.Delete(strings.ToLower(diskURI))
 			diskOpMutex.UnlockKey(instanceid)
 			return c.cloud.processHTTPRetryResponse(nil, "", resp, err)
 		})
