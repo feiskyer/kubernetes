@@ -16,6 +16,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package azure is an implementation of CloudProvider Interface, LoadBalancer
-// and Instances for Azure.
-package azure // import "k8s.io/legacy-cloud-providers/azure"
+// Package armclient implements the client for ARM.
+package armclient // import "k8s.io/legacy-cloud-providers/azure/clients/armclient"

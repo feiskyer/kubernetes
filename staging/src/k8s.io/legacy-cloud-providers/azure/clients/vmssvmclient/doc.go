@@ -16,6 +16,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package azure is an implementation of CloudProvider Interface, LoadBalancer
-// and Instances for Azure.
-package azure // import "k8s.io/legacy-cloud-providers/azure"
+// Package vmssvmclient implements the client for VirtualMachineScaleSetVM.
+package vmssvmclient // import "k8s.io/legacy-cloud-providers/azure/clients/vmssvmclient"
