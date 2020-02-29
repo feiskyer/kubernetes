@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/legacy-cloud-providers/azure/auth"
+	"k8s.io/legacy-cloud-providers/azure/clients/publicipclient/mockpublicipclient"
 	"k8s.io/legacy-cloud-providers/azure/clients/routeclient/mockrouteclient"
 	"k8s.io/legacy-cloud-providers/azure/clients/routetableclient/mockroutetableclient"
 	"k8s.io/legacy-cloud-providers/azure/clients/subnetclient/mocksubnetclient"
@@ -120,124 +121,6 @@ func (fLBC *fakeAzureLBClient) List(ctx context.Context, resourceGroupName strin
 		}
 	}
 	return value, nil
-}
-
-type fakeAzurePIPClient struct {
-	mutex          *sync.Mutex
-	FakeStore      map[string]map[string]network.PublicIPAddress
-	SubscriptionID string
-}
-
-const publicIPAddressIDTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/publicIPAddresses/%s"
-
-// returns the full identifier of a publicIPAddress.
-func getpublicIPAddressID(subscriptionID string, resourceGroupName, pipName string) string {
-	return fmt.Sprintf(
-		publicIPAddressIDTemplate,
-		subscriptionID,
-		resourceGroupName,
-		pipName)
-}
-
-func newFakeAzurePIPClient(subscriptionID string) *fakeAzurePIPClient {
-	fAPC := &fakeAzurePIPClient{}
-	fAPC.FakeStore = make(map[string]map[string]network.PublicIPAddress)
-	fAPC.SubscriptionID = subscriptionID
-	fAPC.mutex = &sync.Mutex{}
-	return fAPC
-}
-
-func (fAPC *fakeAzurePIPClient) CreateOrUpdate(ctx context.Context, resourceGroupName string, publicIPAddressName string, parameters network.PublicIPAddress) *retry.Error {
-	fAPC.mutex.Lock()
-	defer fAPC.mutex.Unlock()
-
-	if _, ok := fAPC.FakeStore[resourceGroupName]; !ok {
-		fAPC.FakeStore[resourceGroupName] = make(map[string]network.PublicIPAddress)
-	}
-
-	// assign id
-	pipID := getpublicIPAddressID(fAPC.SubscriptionID, resourceGroupName, publicIPAddressName)
-	parameters.ID = &pipID
-
-	// only create in the case user has not provided
-	if parameters.PublicIPAddressPropertiesFormat != nil &&
-		parameters.PublicIPAddressPropertiesFormat.PublicIPAllocationMethod == network.Static {
-		// assign ip
-		parameters.IPAddress = getRandomIPPtr()
-	}
-
-	fAPC.FakeStore[resourceGroupName][publicIPAddressName] = parameters
-
-	return nil
-}
-
-func (fAPC *fakeAzurePIPClient) Delete(ctx context.Context, resourceGroupName string, publicIPAddressName string) *retry.Error {
-	fAPC.mutex.Lock()
-	defer fAPC.mutex.Unlock()
-
-	if rgPIPs, ok := fAPC.FakeStore[resourceGroupName]; ok {
-		if _, ok := rgPIPs[publicIPAddressName]; ok {
-			delete(rgPIPs, publicIPAddressName)
-			return nil
-		}
-	}
-
-	return retry.GetError(
-		&http.Response{
-			StatusCode: http.StatusNotFound,
-		},
-		errors.New("Not such PIP"))
-}
-
-func (fAPC *fakeAzurePIPClient) Get(ctx context.Context, resourceGroupName string, publicIPAddressName string, expand string) (result network.PublicIPAddress, err *retry.Error) {
-	fAPC.mutex.Lock()
-	defer fAPC.mutex.Unlock()
-	if _, ok := fAPC.FakeStore[resourceGroupName]; ok {
-		if entity, ok := fAPC.FakeStore[resourceGroupName][publicIPAddressName]; ok {
-			return entity, nil
-		}
-	}
-	return result, retry.GetError(
-		&http.Response{
-			StatusCode: http.StatusNotFound,
-		},
-		errors.New("Not such PIP"))
-}
-
-func (fAPC *fakeAzurePIPClient) GetVirtualMachineScaleSetPublicIPAddress(ctx context.Context, resourceGroupName string, virtualMachineScaleSetName string, virtualmachineIndex string, networkInterfaceName string, IPConfigurationName string, publicIPAddressName string, expand string) (result network.PublicIPAddress, err *retry.Error) {
-	fAPC.mutex.Lock()
-	defer fAPC.mutex.Unlock()
-	if _, ok := fAPC.FakeStore[resourceGroupName]; ok {
-		if entity, ok := fAPC.FakeStore[resourceGroupName][publicIPAddressName]; ok {
-			return entity, nil
-		}
-	}
-	return result, retry.GetError(
-		&http.Response{
-			StatusCode: http.StatusNotFound,
-		},
-		errors.New("Not such PIP"))
-}
-
-func (fAPC *fakeAzurePIPClient) List(ctx context.Context, resourceGroupName string) (result []network.PublicIPAddress, err *retry.Error) {
-	fAPC.mutex.Lock()
-	defer fAPC.mutex.Unlock()
-
-	var value []network.PublicIPAddress
-	if _, ok := fAPC.FakeStore[resourceGroupName]; ok {
-		for _, v := range fAPC.FakeStore[resourceGroupName] {
-			value = append(value, v)
-		}
-	}
-
-	return value, nil
-}
-
-func (fAPC *fakeAzurePIPClient) setFakeStore(store map[string]map[string]network.PublicIPAddress) {
-	fAPC.mutex.Lock()
-	defer fAPC.mutex.Unlock()
-
-	fAPC.FakeStore = store
 }
 
 type fakeAzureInterfacesClient struct {
@@ -788,7 +671,7 @@ func GetTestCloud(ctrl *gomock.Controller) (az *Cloud) {
 	az.DisksClient = newFakeDisksClient()
 	az.InterfacesClient = newFakeAzureInterfacesClient()
 	az.LoadBalancerClient = newFakeAzureLBClient()
-	az.PublicIPAddressesClient = newFakeAzurePIPClient(az.Config.SubscriptionID)
+	az.PublicIPAddressesClient = mockpublicipclient.NewMockInterface(ctrl)
 	az.RoutesClient = mockrouteclient.NewMockInterface(ctrl)
 	az.RouteTablesClient = mockroutetableclient.NewMockInterface(ctrl)
 	az.SecurityGroupsClient = newFakeAzureNSGClient()

@@ -27,6 +27,8 @@ import (
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+
+	"k8s.io/legacy-cloud-providers/azure/clients/publicipclient/mockpublicipclient"
 )
 
 const (
@@ -40,7 +42,7 @@ func newTestScaleSet(ctrl *gomock.Controller, scaleSetName, zone string, faultDo
 
 func newTestScaleSetWithState(ctrl *gomock.Controller, scaleSetName, zone string, faultDomain int32, vmList []string, state string) (*scaleSet, error) {
 	cloud := GetTestCloud(ctrl)
-	setTestVirtualMachineCloud(cloud, scaleSetName, zone, faultDomain, vmList, state)
+	setTestVirtualMachineCloud(cloud, ctrl, scaleSetName, zone, faultDomain, vmList, state)
 	ss, err := newScaleSet(cloud)
 	if err != nil {
 		return nil, err
@@ -49,10 +51,10 @@ func newTestScaleSetWithState(ctrl *gomock.Controller, scaleSetName, zone string
 	return ss.(*scaleSet), nil
 }
 
-func setTestVirtualMachineCloud(ss *Cloud, scaleSetName, zone string, faultDomain int32, vmList []string, state string) {
+func setTestVirtualMachineCloud(ss *Cloud, ctrl *gomock.Controller, scaleSetName, zone string, faultDomain int32, vmList []string, state string) {
 	virtualMachineScaleSetsClient := newFakeVirtualMachineScaleSetsClient()
 	virtualMachineScaleSetVMsClient := newFakeVirtualMachineScaleSetVMsClient()
-	publicIPAddressesClient := newFakeAzurePIPClient("rg")
+	publicIPAddressesClient := mockpublicipclient.NewMockInterface(ctrl)
 	interfaceClient := newFakeAzureInterfacesClient()
 
 	// set test scale sets.
@@ -66,9 +68,6 @@ func setTestVirtualMachineCloud(ss *Cloud, scaleSetName, zone string, faultDomai
 
 	testInterfaces := map[string]map[string]network.Interface{
 		"rg": make(map[string]network.Interface),
-	}
-	testPIPs := map[string]map[string]network.PublicIPAddress{
-		"rg": make(map[string]network.PublicIPAddress),
 	}
 	ssVMs := map[string]map[string]compute.VirtualMachineScaleSetVM{
 		"rg": make(map[string]compute.VirtualMachineScaleSetVM),
@@ -146,18 +145,9 @@ func setTestVirtualMachineCloud(ss *Cloud, scaleSetName, zone string, faultDomai
 				},
 			},
 		}
-
-		// set public IPs.
-		testPIPs["rg"][nodeName] = network.PublicIPAddress{
-			ID: to.StringPtr(publicAddressID),
-			PublicIPAddressPropertiesFormat: &network.PublicIPAddressPropertiesFormat{
-				IPAddress: to.StringPtr(fakePublicIP),
-			},
-		}
 	}
 	virtualMachineScaleSetVMsClient.setFakeStore(ssVMs)
 	interfaceClient.setFakeStore(testInterfaces)
-	publicIPAddressesClient.setFakeStore(testPIPs)
 
 	ss.VirtualMachineScaleSetsClient = virtualMachineScaleSetsClient
 	ss.VirtualMachineScaleSetVMsClient = virtualMachineScaleSetVMsClient
@@ -331,6 +321,15 @@ func TestGetIPByNodeName(t *testing.T) {
 	for _, test := range testCases {
 		ss, err := newTestScaleSet(ctrl, test.scaleSet, "", 0, test.vmList)
 		assert.NoError(t, err, test.description)
+
+		pipClient := ss.PublicIPAddressesClient.(*mockpublicipclient.MockInterface)
+		pipClient.EXPECT().GetVirtualMachineScaleSetPublicIPAddress(gomock.Any(), "rg", test.scaleSet, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), "").Return(
+			network.PublicIPAddress{
+				Name: to.StringPtr("pip"),
+				PublicIPAddressPropertiesFormat: &network.PublicIPAddressPropertiesFormat{
+					IPAddress: to.StringPtr(fakePublicIP),
+				},
+			}, nil).AnyTimes()
 
 		privateIP, publicIP, err := ss.GetIPByNodeName(test.nodeName)
 		if test.expectError {

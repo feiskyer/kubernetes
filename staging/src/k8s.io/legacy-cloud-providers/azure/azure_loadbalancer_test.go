@@ -34,6 +34,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/legacy-cloud-providers/azure/clients/publicipclient/mockpublicipclient"
 	"k8s.io/legacy-cloud-providers/azure/clients/subnetclient/mocksubnetclient"
 )
 
@@ -383,7 +384,17 @@ func TestEnsureLoadBalancerDeleted(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	az := GetTestCloud(ctrl)
+	pipClient := az.PublicIPAddressesClient.(*mockpublicipclient.MockInterface)
+
 	for i, c := range tests {
+		pipClient.EXPECT().Get(gomock.Any(), "rg", "", "").Return(
+			network.PublicIPAddress{
+				Name: to.StringPtr("pip"),
+				PublicIPAddressPropertiesFormat: &network.PublicIPAddressPropertiesFormat{
+					IPAddress: to.StringPtr(fakePublicIP),
+				},
+			}, nil).AnyTimes()
+
 		clusterResources := getClusterResources(az, vmCount, availabilitySetCount)
 		getTestSecurityGroup(az)
 		if c.service.Annotations[ServiceAnnotationLoadBalancerInternal] == "true" {
@@ -1613,15 +1624,14 @@ func TestGetServiceLoadBalancerStatus(t *testing.T) {
 	service := getTestService("test1", v1.ProtocolTCP, nil, 80)
 	internalService := getInternalTestService("test1", 80)
 
-	PIPClient := newFakeAzurePIPClient(az.Config.SubscriptionID)
-	PIPClient.setFakeStore(map[string]map[string]network.PublicIPAddress{
-		"rg": {"id1": network.PublicIPAddress{
+	pipClient := az.PublicIPAddressesClient.(*mockpublicipclient.MockInterface)
+	pipClient.EXPECT().Get(gomock.Any(), "rg", "id1", "").Return(
+		network.PublicIPAddress{
+			Name: to.StringPtr("id1"),
 			PublicIPAddressPropertiesFormat: &network.PublicIPAddressPropertiesFormat{
 				IPAddress: to.StringPtr("1.2.3.4"),
 			},
-		}},
-	})
-	az.PublicIPAddressesClient = PIPClient
+		}, nil).AnyTimes()
 
 	lb1 := getTestLoadBalancer(to.StringPtr("lb1"), to.StringPtr("rg"), to.StringPtr("testCluster"),
 		to.StringPtr("test1"), internalService, "Basic")

@@ -37,11 +37,24 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	servicehelpers "k8s.io/cloud-provider/service/helpers"
+	"k8s.io/legacy-cloud-providers/azure/clients/publicipclient/mockpublicipclient"
 	"k8s.io/legacy-cloud-providers/azure/clients/subnetclient/mocksubnetclient"
 	"k8s.io/legacy-cloud-providers/azure/retry"
 )
 
-var testClusterName = "testCluster"
+const (
+	testClusterName           = "testCluster"
+	publicIPAddressIDTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/publicIPAddresses/%s"
+)
+
+// getpublicIPAddressID returns the full identifier of a publicIPAddress.
+func getpublicIPAddressID(subscriptionID string, resourceGroupName, pipName string) string {
+	return fmt.Sprintf(
+		publicIPAddressIDTemplate,
+		subscriptionID,
+		resourceGroupName,
+		pipName)
+}
 
 // Test flipServiceInternalAnnotation
 func TestFlipServiceInternalAnnotation(t *testing.T) {
@@ -75,6 +88,14 @@ func TestAddPort(t *testing.T) {
 	az := GetTestCloud(ctrl)
 	svc := getTestService("servicea", v1.ProtocolTCP, nil, 80)
 	clusterResources := getClusterResources(az, 1, 1)
+	pipClient := az.PublicIPAddressesClient.(*mockpublicipclient.MockInterface)
+	pipClient.EXPECT().Get(gomock.Any(), "rg", "testCluster-aservicea", "").Return(
+		network.PublicIPAddress{
+			Name: to.StringPtr("testCluster-aservicea"),
+			PublicIPAddressPropertiesFormat: &network.PublicIPAddressPropertiesFormat{
+				IPAddress: to.StringPtr(fakePublicIP),
+			},
+		}, nil).AnyTimes()
 
 	svc.Spec.Ports = append(svc.Spec.Ports, v1.ServicePort{
 		Name:     fmt.Sprintf("port-udp-%d", 1234),
@@ -120,6 +141,16 @@ func testLoadBalancerServiceDefaultModeSelection(t *testing.T, isInternal bool) 
 	const vmCount = 8
 	const availabilitySetCount = 4
 	const serviceCount = 9
+	pipClient := az.PublicIPAddressesClient.(*mockpublicipclient.MockInterface)
+	pipClient.EXPECT().List(gomock.Any(), "rg").Return(
+		[]network.PublicIPAddress{
+			{
+				Name: to.StringPtr("pip"),
+				PublicIPAddressPropertiesFormat: &network.PublicIPAddressPropertiesFormat{
+					IPAddress: to.StringPtr(fakePublicIP),
+				},
+			},
+		}, nil).AnyTimes()
 
 	clusterResources := getClusterResources(az, vmCount, availabilitySetCount)
 	getTestSecurityGroup(az)
@@ -178,6 +209,16 @@ func testLoadBalancerServiceAutoModeSelection(t *testing.T, isInternal bool) {
 	const vmCount = 8
 	const availabilitySetCount = 4
 	const serviceCount = 9
+	pipClient := az.PublicIPAddressesClient.(*mockpublicipclient.MockInterface)
+	pipClient.EXPECT().List(gomock.Any(), "rg").Return(
+		[]network.PublicIPAddress{
+			{
+				Name: to.StringPtr("pip"),
+				PublicIPAddressPropertiesFormat: &network.PublicIPAddressPropertiesFormat{
+					IPAddress: to.StringPtr(fakePublicIP),
+				},
+			},
+		}, nil).AnyTimes()
 
 	clusterResources := getClusterResources(az, vmCount, availabilitySetCount)
 	getTestSecurityGroup(az)
@@ -242,6 +283,16 @@ func testLoadBalancerServicesSpecifiedSelection(t *testing.T, isInternal bool) {
 	const vmCount = 8
 	const availabilitySetCount = 4
 	const serviceCount = 9
+	pipClient := az.PublicIPAddressesClient.(*mockpublicipclient.MockInterface)
+	pipClient.EXPECT().List(gomock.Any(), "rg").Return(
+		[]network.PublicIPAddress{
+			{
+				Name: to.StringPtr("pip"),
+				PublicIPAddressPropertiesFormat: &network.PublicIPAddressPropertiesFormat{
+					IPAddress: to.StringPtr(fakePublicIP),
+				},
+			},
+		}, nil).AnyTimes()
 
 	clusterResources := getClusterResources(az, vmCount, availabilitySetCount)
 	getTestSecurityGroup(az)
@@ -287,6 +338,16 @@ func testLoadBalancerMaxRulesServices(t *testing.T, isInternal bool) {
 	az := GetTestCloud(ctrl)
 	const vmCount = 1
 	const availabilitySetCount = 1
+	pipClient := az.PublicIPAddressesClient.(*mockpublicipclient.MockInterface)
+	pipClient.EXPECT().List(gomock.Any(), "rg").Return(
+		[]network.PublicIPAddress{
+			{
+				Name: to.StringPtr("pip"),
+				PublicIPAddressPropertiesFormat: &network.PublicIPAddressPropertiesFormat{
+					IPAddress: to.StringPtr(fakePublicIP),
+				},
+			},
+		}, nil).AnyTimes()
 
 	clusterResources := getClusterResources(az, vmCount, availabilitySetCount)
 	getTestSecurityGroup(az)
@@ -351,6 +412,16 @@ func testLoadBalancerServiceAutoModeDeleteSelection(t *testing.T, isInternal boo
 	const vmCount = 8
 	const availabilitySetCount = 4
 	const serviceCount = 9
+	pipClient := az.PublicIPAddressesClient.(*mockpublicipclient.MockInterface)
+	pipClient.EXPECT().List(gomock.Any(), "rg").Return(
+		[]network.PublicIPAddress{
+			{
+				Name: to.StringPtr("pip"),
+				PublicIPAddressPropertiesFormat: &network.PublicIPAddressPropertiesFormat{
+					IPAddress: to.StringPtr(fakePublicIP),
+				},
+			},
+		}, nil).AnyTimes()
 
 	clusterResources := getClusterResources(az, vmCount, availabilitySetCount)
 	getTestSecurityGroup(az)
