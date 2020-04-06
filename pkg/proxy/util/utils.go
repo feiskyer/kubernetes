@@ -22,14 +22,14 @@ import (
 	"fmt"
 	"net"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	utilrand "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/klog"
 	helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 	utilnet "k8s.io/utils/net"
-
-	"k8s.io/klog"
 )
 
 const (
@@ -245,4 +245,38 @@ func AppendPortIfNeeded(addr string, port int32) string {
 		return fmt.Sprintf("%s:%d", addr, port)
 	}
 	return fmt.Sprintf("[%s]:%d", addr, port)
+}
+
+// ShuffleStrings copies strings from the specified slice into a copy in random
+// order. It returns a new slice.
+func ShuffleStrings(s []string) []string {
+	if s == nil {
+		return nil
+	}
+	shuffled := make([]string, len(s))
+	perm := utilrand.Perm(len(s))
+	for i, j := range perm {
+		shuffled[j] = s[i]
+	}
+	return shuffled
+}
+
+// DialContext is a dial function matching the signature of net.Dialer.DialContext.
+type DialContext = func(context.Context, string, string) (net.Conn, error)
+
+// NewFilteredDialContext returns a DialContext function that only allows
+// connections to proxyable addresses, as defined by IsProxyableHostname. If the
+// wrapped DialContext is nil, all DNS and TCP settings use golang default
+// values.
+func NewFilteredDialContext(wrapped DialContext) DialContext {
+	if wrapped == nil {
+		wrapped = (&net.Dialer{}).DialContext
+	}
+	var resolver *net.Resolver
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		if err := IsProxyableHostname(ctx, resolver, address); err != nil {
+			return nil, err
+		}
+		return wrapped(ctx, network, address)
+	}
 }
