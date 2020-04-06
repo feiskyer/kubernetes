@@ -29,7 +29,7 @@ import (
 
 	gcli "github.com/heketi/heketi/client/api/go-client"
 	gapi "github.com/heketi/heketi/pkg/glusterfs/api"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,6 +41,7 @@ import (
 	volumehelpers "k8s.io/cloud-provider/volume/helpers"
 	"k8s.io/klog"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
+	proxyutil "k8s.io/kubernetes/pkg/proxy/util"
 	"k8s.io/kubernetes/pkg/util/mount"
 	"k8s.io/kubernetes/pkg/volume"
 	volutil "k8s.io/kubernetes/pkg/volume/util"
@@ -664,7 +665,9 @@ func (d *glusterfsVolumeDeleter) Delete() error {
 			return fmt.Errorf("failed to release gid %v: %v", gid, err)
 		}
 	}
-	cli := gcli.NewClient(d.url, d.user, d.secretValue)
+	opts := gcli.DefaultClientOptions()
+	opts.DialContext = proxyutil.NewFilteredDialContext(nil)
+	cli := gcli.NewClientWithOptions(d.url, d.user, d.secretValue, opts)
 	if cli == nil {
 		klog.Errorf("failed to create glusterfs REST client")
 		return fmt.Errorf("failed to create glusterfs REST client, REST server authentication failed")

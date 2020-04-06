@@ -286,3 +286,23 @@ func ShuffleStrings(s []string) []string {
 	}
 	return shuffled
 }
+
+// DialContext is a dial function matching the signature of net.Dialer.DialContext.
+type DialContext = func(context.Context, string, string) (net.Conn, error)
+
+// NewFilteredDialContext returns a DialContext function that only allows
+// connections to proxyable addresses, as defined by IsProxyableHostname. If the
+// wrapped DialContext is nil, all DNS and TCP settings use golang default
+// values.
+func NewFilteredDialContext(wrapped DialContext) DialContext {
+	if wrapped == nil {
+		wrapped = (&net.Dialer{}).DialContext
+	}
+	var resolver *net.Resolver
+	return func(ctx context.Context, network, address string) (net.Conn, error) {
+		if err := IsProxyableHostname(ctx, resolver, address); err != nil {
+			return nil, err
+		}
+		return wrapped(ctx, network, address)
+	}
+}
