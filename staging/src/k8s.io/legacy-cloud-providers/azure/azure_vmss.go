@@ -819,14 +819,33 @@ func (ss *scaleSet) getConfigForScaleSetByIPFamily(config *compute.VirtualMachin
 	return nil, fmt.Errorf("failed to find a  IPconfiguration(IPv6=%v) for the scale set VM %q", IPv6, nodeName)
 }
 
-// EnsureHostInPool ensures the given VM's Primary NIC's Primary IP Configuration is
-// participating in the specified LoadBalancer Backend Pool.
-func (ss *scaleSet) EnsureHostInPool(service *v1.Service, nodeName types.NodeName, backendPoolID string, vmSetName string, isInternal bool) error {
-	klog.V(3).Infof("ensuring node %q of scaleset %q in LB backendpool %q", nodeName, vmSetName, backendPoolID)
+func (ss *scaleSet) findPrimaryNetworkInterfaceConfiguration(service *v1.Service, vmName string, primaryNetworkInterfaceConfiguration *compute.VirtualMachineScaleSetNetworkConfiguration) (*compute.VirtualMachineScaleSetIPConfiguration, error) {
+	var primaryIPConfiguration *compute.VirtualMachineScaleSetIPConfiguration
+	var err error
+
+	if !ss.Cloud.ipv6DualStackEnabled {
+		// Find primary IP configuration.
+		primaryIPConfiguration, err = getPrimaryIPConfigFromVMSSNetworkConfig(primaryNetworkInterfaceConfiguration)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		ipv6 := utilnet.IsIPv6String(service.Spec.ClusterIP)
+		primaryIPConfiguration, err = ss.getConfigForScaleSetByIPFamily(primaryNetworkInterfaceConfiguration, vmName, ipv6)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return primaryIPConfiguration, nil
+}
+
+func (ss *scaleSet) isVMReadyForNewBackendPool(service *v1.Service, nodeName types.NodeName, backendPoolID string, vmSetName string) (*types.NodeName, error) {
+	klog.V(6).Infof("isVMReadyForNewBackendPool: check whether node %q of scaleset %q is ready for a new LB backendpool %q", nodeName, vmSetName, backendPoolID)
 	vmName := mapNodeNameToVMName(nodeName)
-	ssName, instanceID, vm, err := ss.getVmssVM(vmName, cacheReadTypeDefault)
+	ssName, _, vm, err := ss.getVmssVM(vmName, cacheReadTypeDefault)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Check scale set name:
@@ -834,36 +853,25 @@ func (ss *scaleSet) EnsureHostInPool(service *v1.Service, nodeName types.NodeNam
 	// - For standard SKU load balancer, backend could belong to multiple VMSS, so we
 	//   don't check vmSet for it.
 	if vmSetName != "" && !ss.useStandardLoadBalancer() && !strings.EqualFold(vmSetName, ssName) {
-		klog.V(3).Infof("EnsureHostInPool skips node %s because it is not in the scaleSet %s", vmName, vmSetName)
-		return nil
+		klog.V(3).Infof("isVMReadyForNewBackendPool skips node %s because it is not in the scaleSet %s", vmName, vmSetName)
+		return nil, nil
 	}
 
 	// Find primary network interface configuration.
 	if vm.NetworkProfileConfiguration.NetworkInterfaceConfigurations == nil {
-		klog.V(4).Infof("EnsureHostInPool: cannot obtain the primary network interface configuration, of vm %s, probably because the vm's being deleted", vmName)
-		return nil
+		klog.V(4).Infof("isVMReadyForNewBackendPool: cannot obtain the primary network interface configuration, of vm %s, probably because the vm's being deleted", vmName)
+		return nil, nil
 	}
 
 	networkInterfaceConfigurations := *vm.NetworkProfileConfiguration.NetworkInterfaceConfigurations
 	primaryNetworkInterfaceConfiguration, err := ss.getPrimaryNetworkInterfaceConfiguration(networkInterfaceConfigurations, vmName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	var primaryIPConfiguration *compute.VirtualMachineScaleSetIPConfiguration
-	// Find primary network interface configuration.
-	if !ss.Cloud.ipv6DualStackEnabled {
-		// Find primary IP configuration.
-		primaryIPConfiguration, err = getPrimaryIPConfigFromVMSSNetworkConfig(primaryNetworkInterfaceConfiguration)
-		if err != nil {
-			return err
-		}
-	} else {
-		ipv6 := utilnet.IsIPv6String(service.Spec.ClusterIP)
-		primaryIPConfiguration, err = ss.getConfigForScaleSetByIPFamily(primaryNetworkInterfaceConfiguration, vmName, ipv6)
-		if err != nil {
-			return err
-		}
+	primaryIPConfiguration, err := ss.findPrimaryNetworkInterfaceConfiguration(service, vmName, primaryNetworkInterfaceConfiguration)
+	if err != nil {
+		return nil, err
 	}
 
 	// Update primary IP configuration's LoadBalancerBackendAddressPools.
@@ -881,7 +889,7 @@ func (ss *scaleSet) EnsureHostInPool(service *v1.Service, nodeName types.NodeNam
 
 	// The backendPoolID has already been found from existing LoadBalancerBackendAddressPools.
 	if foundPool {
-		return nil
+		return nil, nil
 	}
 
 	if ss.useStandardLoadBalancer() && len(newBackendPools) > 0 {
@@ -897,12 +905,41 @@ func (ss *scaleSet) EnsureHostInPool(service *v1.Service, nodeName types.NodeNam
 		}
 		isSameLB, oldLBName, err := isBackendPoolOnSameLB(backendPoolID, newBackendPoolsIDs)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if !isSameLB {
 			klog.V(4).Infof("Node %q has already been added to LB %q, omit adding it to a new one", nodeName, oldLBName)
-			return nil
+			return nil, nil
 		}
+	}
+
+	return &nodeName, nil
+}
+
+// EnsureHostInPool ensures the given VM's Primary NIC's Primary IP Configuration is
+// participating in the specified LoadBalancer Backend Pool.
+func (ss *scaleSet) EnsureHostInPool(service *v1.Service, nodeName types.NodeName, backendPoolID string, vmSetName string, isInternal bool) error {
+	klog.V(3).Infof("ensuring node %q of scaleset %q in LB backendpool %q", nodeName, vmSetName, backendPoolID)
+	vmName := mapNodeNameToVMName(nodeName)
+	ssName, instanceID, vm, err := ss.getVmssVM(vmName, cacheReadTypeDefault)
+	if err != nil {
+		return err
+	}
+
+	networkInterfaceConfigurations := *vm.NetworkProfileConfiguration.NetworkInterfaceConfigurations
+	primaryNetworkInterfaceConfiguration, err := ss.getPrimaryNetworkInterfaceConfiguration(networkInterfaceConfigurations, vmName)
+	if err != nil {
+		return err
+	}
+	primaryIPConfiguration, err := ss.findPrimaryNetworkInterfaceConfiguration(service, vmName, primaryNetworkInterfaceConfiguration)
+	if err != nil {
+		return err
+	}
+
+	// Update primary IP configuration's LoadBalancerBackendAddressPools.
+	newBackendPools := []compute.SubResource{}
+	if primaryIPConfiguration.LoadBalancerBackendAddressPools != nil {
+		newBackendPools = *primaryIPConfiguration.LoadBalancerBackendAddressPools
 	}
 
 	// Compose a new vmssVM with added backendPoolID.
@@ -1088,9 +1125,41 @@ func (ss *scaleSet) ensureVMSSInPool(service *v1.Service, nodes []*v1.Node, back
 // EnsureHostsInPool ensures the given Node's primary IP configurations are
 // participating in the specified LoadBalancer Backend Pool.
 func (ss *scaleSet) EnsureHostsInPool(service *v1.Service, nodes []*v1.Node, backendPoolID string, vmSetName string, isInternal bool) error {
+	vmNamesChan := make(chan *types.NodeName, len(nodes))
+	filters := make([]func() error, 0, len(nodes))
+	for _, node := range nodes {
+		nodeName := types.NodeName(node.Name)
+
+		filter := func() error {
+			nodeName, err := ss.isVMReadyForNewBackendPool(service, nodeName, backendPoolID, vmSetName)
+			vmNamesChan <- nodeName
+			if err != nil {
+				return fmt.Errorf("fail to determine whether the node %s is ready for a new backend pool with err %v", *nodeName, err)
+			}
+
+			return nil
+		}
+		filters = append(filters, filter)
+	}
+
+	errs := utilerrors.AggregateGoroutines(filters...)
+	if errs != nil {
+		return utilerrors.Flatten(errs)
+	}
+
+	readyNodeNames := make(map[types.NodeName]struct{}, 0)
+	for i := 0; i < cap(vmNamesChan); i++ {
+		if nodeName := <-vmNamesChan; nodeName != nil {
+			readyNodeNames[*nodeName] = struct{}{}
+		}
+	}
+
 	hostUpdates := make([]func() error, 0, len(nodes))
 	for _, node := range nodes {
 		localNodeName := node.Name
+		if _, ok := readyNodeNames[types.NodeName(localNodeName)]; !ok {
+			continue
+		}
 
 		if ss.useStandardLoadBalancer() && ss.excludeMasterNodesFromStandardLB() && isMasterNode(node) {
 			klog.V(4).Infof("Excluding master node %q from load balancer backendpool %q", localNodeName, backendPoolID)
@@ -1129,7 +1198,7 @@ func (ss *scaleSet) EnsureHostsInPool(service *v1.Service, nodes []*v1.Node, bac
 		hostUpdates = append(hostUpdates, f)
 	}
 
-	errs := aggregateGoroutinesWithDelay(vmssVMInstanceUpdateDelay, hostUpdates...)
+	errs = aggregateGoroutinesWithDelay(vmssVMInstanceUpdateDelay, hostUpdates...)
 	if errs != nil {
 		return utilerrors.Flatten(errs)
 	}
