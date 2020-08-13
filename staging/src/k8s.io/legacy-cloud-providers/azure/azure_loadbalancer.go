@@ -98,6 +98,11 @@ const (
 	// TODO(feiskyer): disable-tcp-reset annotations has been depracated since v1.18, it would removed on v1.20.
 	ServiceAnnotationLoadBalancerDisableTCPReset = "service.beta.kubernetes.io/azure-load-balancer-disable-tcp-reset"
 
+	// ServiceAnnotationLoadBalancerDisableFloatingIP is the annotation used on the service
+	// to disable FloatingIP feature on the load balancer rule. If you want to disable FloatingIP
+	// for all services, please set "disableFloatingIP" to true in cloud provider configure file.
+	ServiceAnnotationLoadBalancerDisableFloatingIP = "service.beta.kubernetes.io/azure-load-balancer-disable-floating-ip"
+
 	// serviceTagKey is the service key applied for public IP tags.
 	serviceTagKey = "service"
 	// clusterNameKey is the cluster name key applied for public IP tags.
@@ -1067,6 +1072,11 @@ func (az *Cloud) reconcileLoadBalancerRule(
 				loadDistribution = network.LoadDistributionSourceIP
 			}
 
+			shouldDisableFloatingIP := az.shouldFloatingIPDisabled(service)
+			backendPort := port.Port
+			if shouldDisableFloatingIP {
+				backendPort = port.NodePort
+			}
 			expectedRule := network.LoadBalancingRule{
 				Name: &lbRuleName,
 				LoadBalancingRulePropertiesFormat: &network.LoadBalancingRulePropertiesFormat{
@@ -1079,10 +1089,10 @@ func (az *Cloud) reconcileLoadBalancerRule(
 					},
 					LoadDistribution:    loadDistribution,
 					FrontendPort:        to.Int32Ptr(port.Port),
-					BackendPort:         to.Int32Ptr(port.Port),
+					BackendPort:         to.Int32Ptr(backendPort),
 					DisableOutboundSnat: to.BoolPtr(az.disableLoadBalancerOutboundSNAT()),
 					EnableTCPReset:      enableTCPReset,
-					EnableFloatingIP:    to.BoolPtr(true),
+					EnableFloatingIP:    to.BoolPtr(!shouldDisableFloatingIP),
 				},
 			}
 
@@ -1162,17 +1172,16 @@ func (az *Cloud) reconcileSecurityGroup(clusterName string, service *v1.Service,
 	expectedSecurityRules := []network.SecurityRule{}
 
 	if wantLb {
-		expectedSecurityRules = make([]network.SecurityRule, len(ports)*len(sourceAddressPrefixes))
+		expectedSecurityRules = make([]network.SecurityRule, 0, 2*len(ports)*len(sourceAddressPrefixes))
 
-		for i, port := range ports {
+		for _, port := range ports {
 			_, securityProto, _, err := getProtocolsFromKubernetesProtocol(port.Protocol)
 			if err != nil {
 				return nil, err
 			}
 			for j := range sourceAddressPrefixes {
-				ix := i*len(sourceAddressPrefixes) + j
 				securityRuleName := az.getSecurityRuleName(service, port, sourceAddressPrefixes[j])
-				expectedSecurityRules[ix] = network.SecurityRule{
+				expectedSecurityRules = append(expectedSecurityRules, network.SecurityRule{
 					Name: to.StringPtr(securityRuleName),
 					SecurityRulePropertiesFormat: &network.SecurityRulePropertiesFormat{
 						Protocol:                 *securityProto,
@@ -1183,6 +1192,23 @@ func (az *Cloud) reconcileSecurityGroup(clusterName string, service *v1.Service,
 						Access:                   network.SecurityRuleAccessAllow,
 						Direction:                network.SecurityRuleDirectionInbound,
 					},
+				})
+
+				// NodePort also be added to NSG rules when FloatingIP is disabled.
+				if az.shouldFloatingIPDisabled(service) {
+					nodePortSecurityRuleName := az.getNodePortSecurityRuleName(service, port, sourceAddressPrefixes[j])
+					expectedSecurityRules = append(expectedSecurityRules, network.SecurityRule{
+						Name: to.StringPtr(nodePortSecurityRuleName),
+						SecurityRulePropertiesFormat: &network.SecurityRulePropertiesFormat{
+							Protocol:                 *securityProto,
+							SourcePortRange:          to.StringPtr("*"),
+							DestinationPortRange:     to.StringPtr(strconv.Itoa(int(port.NodePort))),
+							SourceAddressPrefix:      to.StringPtr(sourceAddressPrefixes[j]),
+							DestinationAddressPrefix: to.StringPtr("VirtualNetwork"),
+							Access:                   network.SecurityRuleAccessAllow,
+							Direction:                network.SecurityRuleDirectionInbound,
+						},
+					})
 				}
 			}
 		}
@@ -1711,6 +1737,27 @@ func (az *Cloud) isBackendPoolPreConfigured(service *v1.Service) bool {
 	}
 
 	return preConfigured
+}
+
+// shouldFloatingIPDisabled returns true if the FloatingIP feature should be disabled.
+func (az *Cloud) shouldFloatingIPDisabled(service *v1.Service) bool {
+	if az.DisableFloatingIP {
+		if service != nil {
+			if l, found := service.Annotations[ServiceAnnotationLoadBalancerDisableFloatingIP]; found && l == "false" {
+				return false
+			}
+		}
+
+		return true
+	}
+
+	if service != nil {
+		if l, found := service.Annotations[ServiceAnnotationLoadBalancerDisableFloatingIP]; found {
+			return l == "true"
+		}
+	}
+
+	return false
 }
 
 // Check if service requires an internal load balancer.

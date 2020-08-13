@@ -216,6 +216,11 @@ type Config struct {
 
 	// DisableAvailabilitySetNodes disables VMAS nodes support when "VMType" is set to "vmss".
 	DisableAvailabilitySetNodes bool `json:"disableAvailabilitySetNodes,omitempty" yaml:"disableAvailabilitySetNodes,omitempty"`
+
+	// DisableFloatingIP disables FloatingIP feature for all load balancer rules.
+	// If you only wants to disable FloatingIP feature for a single service, please use
+	// service annotation "service.beta.kubernetes.io/azure-load-balancer-disable-floating-ip".
+	DisableFloatingIP bool `json:"disableFloatingIP,omitempty" yaml:"disableFloatingIP,omitempty"`
 }
 
 var _ cloudprovider.Interface = (*Cloud)(nil)

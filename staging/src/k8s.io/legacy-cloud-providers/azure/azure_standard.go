@@ -307,6 +307,16 @@ func (az *Cloud) getSecurityRuleName(service *v1.Service, port v1.ServicePort, s
 	return fmt.Sprintf("%s-%s-%d-%s", rulePrefix, port.Protocol, port.Port, safePrefix)
 }
 
+func (az *Cloud) getNodePortSecurityRuleName(service *v1.Service, port v1.ServicePort, sourceAddrPrefix string) string {
+	if useSharedSecurityRule(service) {
+		safePrefix := strings.Replace(sourceAddrPrefix, "/", "_", -1)
+		return fmt.Sprintf("shared-%s-%d-%s", port.Protocol, port.NodePort, safePrefix)
+	}
+	safePrefix := strings.Replace(sourceAddrPrefix, "/", "_", -1)
+	rulePrefix := az.getRulePrefix(service)
+	return fmt.Sprintf("%s-%s-%d-%s", rulePrefix, port.Protocol, port.NodePort, safePrefix)
+}
+
 // This returns a human-readable version of the Service used to tag some resources.
 // This is only used for human-readable convenience, and not to filter.
 func getServiceName(service *v1.Service) string {

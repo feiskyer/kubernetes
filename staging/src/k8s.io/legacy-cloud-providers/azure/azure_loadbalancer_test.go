@@ -2476,3 +2476,74 @@ func TestIsBackendPoolPreConfigured(t *testing.T) {
 		assert.Equal(t, test.expectedOutput, isPreConfigured, "TestCase[%d]: %s", i, test.desc)
 	}
 }
+
+func TestShouldFloatingIPDisabled(t *testing.T) {
+	testCases := []struct {
+		desc                    string
+		configDisableFloatingIP bool
+		service                 *v1.Service
+		expected                bool
+	}{
+		{
+			desc:     "should return false by default",
+			expected: false,
+		},
+		{
+			desc:                    "should return false when disableFloatingIP is configured to false",
+			configDisableFloatingIP: false,
+			expected:                false,
+		},
+		{
+			desc:                    "should return true when disableFloatingIP is configured to true",
+			configDisableFloatingIP: true,
+			expected:                true,
+		},
+		{
+			desc: "should return true when service has set ServiceAnnotationLoadBalancerDisableFloatingIP to true",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerDisableFloatingIP: "true",
+					},
+				},
+			},
+			configDisableFloatingIP: false,
+			expected:                true,
+		},
+		{
+			desc: "should return false when service has set ServiceAnnotationLoadBalancerDisableFloatingIP to false",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerDisableFloatingIP: "false",
+					},
+				},
+			},
+			configDisableFloatingIP: false,
+			expected:                false,
+		},
+		{
+			desc: "should return true when disableFloatingIP is set to true while service has set ServiceAnnotationLoadBalancerDisableFloatingIP to false",
+			service: &v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						ServiceAnnotationLoadBalancerDisableFloatingIP: "false",
+					},
+				},
+			},
+			configDisableFloatingIP: true,
+			expected:                false,
+		},
+	}
+
+	for i, test := range testCases {
+		az := &Cloud{
+			Config: Config{
+				DisableFloatingIP: test.configDisableFloatingIP,
+			},
+		}
+
+		result := az.shouldFloatingIPDisabled(test.service)
+		assert.Equal(t, test.expected, result, "TestCase[%d]: %s", i, test.desc)
+	}
+}
